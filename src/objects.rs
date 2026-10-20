@@ -1,0 +1,54 @@
+pub mod plane;
+pub mod sphere;
+pub use plane::Plane;
+pub use sphere::Sphere;
+
+use crate::colour::Colour;
+use crate::maths::lines::Line;
+use crate::maths::vectors::V3;
+use crate::maths::Intersection;
+
+#[allow(dead_code)]
+#[derive(Debug, Copy, Clone)]
+pub struct SurfaceType {
+    pub diffuseness: f64,
+    pub reflectiveness: f64,
+    pub transparency: f64,
+    pub refractive_index: f64,
+    pub opaqueness: f64,
+    pub blocks_light: bool,
+    pub full_bright: bool,
+}
+
+#[allow(dead_code)]
+impl SurfaceType {
+    pub fn new(
+        diffusiveness: f64,
+        reflectiveness: f64,
+        transparency: f64,
+        refractive_index: f64,
+        blocks_light: bool,
+        full_bright: bool,
+    ) -> Self {
+        Self {
+            diffuseness: diffusiveness,
+            reflectiveness,
+            transparency,
+            refractive_index,
+            opaqueness: 1.0 - transparency - reflectiveness,
+            blocks_light,
+            full_bright,
+        }
+    }
+}
+
+pub trait Object {
+    #[allow(dead_code)]
+    fn as_any(&self) -> &dyn Object;
+    fn get_surface_type(&self) -> &SurfaceType;
+    fn get_intersections(&self, line: &Line) -> Vec<Intersection>;
+    fn get_normal(&self, intersection: &Intersection) -> V3;
+    fn get_colour(&self, intersection: &Intersection) -> &Colour;
+    fn get_reflection_line(&self, line: &Line, intersection: &Intersection) -> Line;
+    fn get_transparent_line(&self, line: &Line, intersection: &Intersection) -> Line;
+}
