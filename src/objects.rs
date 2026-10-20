@@ -4,9 +4,9 @@ pub use plane::Plane;
 pub use sphere::Sphere;
 
 use crate::colour::Colour;
+use crate::maths::Intersection;
 use crate::maths::lines::Line;
 use crate::maths::vectors::V3;
-use crate::maths::Intersection;
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]

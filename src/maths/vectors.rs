@@ -1,5 +1,5 @@
-use rand::rngs::ThreadRng;
 use rand::Rng;
+use rand::rngs::ThreadRng;
 use std::f64::consts::PI;
 use std::ops;
 

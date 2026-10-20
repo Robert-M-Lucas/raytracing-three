@@ -1,10 +1,10 @@
 use super::Object;
 use super::SurfaceType;
-use crate::colour::colour_getters::ColourGetter;
 use crate::colour::Colour;
+use crate::colour::colour_getters::ColourGetter;
+use crate::maths::Intersection;
 use crate::maths::lines::Line;
 use crate::maths::vectors::V3;
-use crate::maths::Intersection;
 
 #[allow(dead_code)]
 pub struct Plane {
@@ -12,7 +12,7 @@ pub struct Plane {
     pub vector_one: V3,
     pub vector_two: V3,
     pub limits: Option<(f64, f64, f64, f64)>, // x-min, y-min, x-max, y-max
-    colour_getter: Box<dyn ColourGetter + Sync>,
+    colour_getter: Box<dyn ColourGetter + Sync + Send>,
     surface_type: SurfaceType,
     cached_sol: f64,
 }
@@ -24,7 +24,7 @@ impl Plane {
         vector_one: &V3,
         vector_two: &V3,
         limits: Option<(f64, f64, f64, f64)>,
-        colour_getter: Box<dyn ColourGetter + Sync>,
+        colour_getter: Box<dyn ColourGetter + Sync + Send>,
         surface_type: SurfaceType,
     ) -> Self {
         Self {

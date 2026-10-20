@@ -1,6 +1,6 @@
 use colour::{
-    colour_getters::{SolidColour, Texture},
     Colour,
+    colour_getters::{SolidColour, Texture},
 };
 use interface::Interface;
 use lights::{DirectionalLight, Light, PointLight};
@@ -21,13 +21,13 @@ const _4K: (u32, u32) = (3840, 2160);
 const _1440P: (u32, u32) = (2560, 1440);
 const _1080P: (u32, u32) = (1920, 1080);
 const _720P: (u32, u32) = (1280, 720);
-const _480P: (u32, u32) = (640, 480);
-const _360P: (u32, u32) = (480, 360);
-const _240P: (u32, u32) = (320, 240);
-const _144P: (u32, u32) = (192, 144);
+const _480P: (u32, u32) = (864, 486);
+const _360P: (u32, u32) = (640, 360);
+const _240P: (u32, u32) = (432, 243);
+const _144P: (u32, u32) = (256, 144);
 
 fn main() {
-    let scene_objects: Vec<Box<dyn Object + Sync>> = vec![
+    let scene_objects: Vec<Box<dyn Object + Sync + Send>> = vec![
         // Floor
         Box::new(Plane::new(
             &V3::new(0.0, 0.0, 0.0),
@@ -302,7 +302,7 @@ fn main() {
         )),
     ];
 
-    let scene_lights: Vec<Box<dyn Light + Sync>> = vec![
+    let scene_lights: Vec<Box<dyn Light + Sync + Send>> = vec![
         Box::new(DirectionalLight::new(
             &V3::new(1.0, -1.0, 1.0),
             &Colour::from_u8(255, 235, 200),
@@ -322,9 +322,9 @@ fn main() {
 
     let render_config: RenderConfig = RenderConfig {
         resolution: _240P,
-        screenshot_resolution: _8K,
-        max_reflections: 2,
-        screenshot_max_reflection: 10,
+        screenshot_resolution: _1080P,
+        max_reflections: 1,
+        screenshot_max_reflection: 5,
         // diffusive_constant: 1.0 / (4.0 * PI * 10.0),
         sky_height: 1000.0,
         sky_scale: 5000.0,
@@ -342,5 +342,5 @@ fn main() {
 
     let camera = Camera::new(&V3::new(-5.0, 1.0, 0.0), (0.0, 0.0), 0.866);
 
-    Interface::start(render_config, camera);
+    Interface::start(render_config, camera, _720P);
 }

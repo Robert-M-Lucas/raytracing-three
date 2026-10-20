@@ -1,64 +1,78 @@
 pub mod camera;
-use std::{f64::consts::PI, fs, time::Instant};
-
 use crate::{
     colour::Colour,
-    maths::{lines::Line, vectors::V3, Intersection},
+    maths::{Intersection, lines::Line, vectors::V3},
     objects::Object,
 };
 pub use camera::Camera;
 use chrono::{Datelike, Timelike};
 use image::{DynamicImage, ImageBuffer, Rgb};
 use rand::rngs::ThreadRng;
+use std::sync::Arc;
+use std::{f64::consts::PI, fs, thread, time::Instant};
 pub mod render_config;
+use crate::interface::PixelArena;
 pub use render_config::RenderConfig;
 
-pub fn take_screenshot(camera: &Camera, render_config: &RenderConfig, _rng: &mut ThreadRng) {
+pub fn take_screenshot(
+    camera: &Camera,
+    render_config: Arc<RenderConfig>,
+    _rng: &mut ThreadRng,
+) -> PixelArena {
     println!("Rendering screenshot...");
 
-    let start = Instant::now();
-    let pixel_data = camera.get_image_threaded(render_config);
-    let time = start.elapsed();
+    let buffer = camera.get_image_threaded_buffer(&render_config, true);
 
-    // let start2 = Instant::now();
-    // let pixel_data = camera.get_image(render_config, rng, true, false);
-    // let time2 = start2.elapsed();
-    println!("Render time: {:?}", time);
+    let buffer_clone = buffer.clone();
+    let camera = camera.clone();
 
-    println!("Saving screenshot...");
+    thread::spawn(move || {
+        let start = Instant::now();
+        let pixel_data = camera.get_image_threaded(&render_config, true, buffer_clone);
+        let time = start.elapsed();
 
-    let img = DynamicImage::ImageRgb8(
-        ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(
+        // let start2 = Instant::now();
+        // let pixel_data = camera.get_image(render_config, rng, true, false);
+        // let time2 = start2.elapsed();
+        println!("Render time: {:?}", time);
+
+        println!("Saving screenshot...");
+
+        let img = DynamicImage::ImageRgb8(
+            ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(
+                render_config.screenshot_resolution.0,
+                render_config.screenshot_resolution.1,
+                pixel_data,
+            )
+            .unwrap(),
+        );
+
+        let now = chrono::offset::Local::now();
+
+        let file_name = format!(
+            "Render {}-{}-{} {}-{}-{} {}x{}",
+            format!("{:0>2}", now.year()),
+            format!("{:0>2}", now.month()),
+            format!("{:0>2}", now.day()),
+            format!("{:0>2}", now.hour()),
+            format!("{:0>2}", now.minute()),
+            format!("{:0>2}", now.second()),
             render_config.screenshot_resolution.0,
-            render_config.screenshot_resolution.1,
-            pixel_data,
-        )
-        .unwrap(),
-    );
+            render_config.screenshot_resolution.1
+        );
 
-    let now = chrono::offset::Local::now();
+        let mut is_err = fs::create_dir_all("renders").is_err();
+        if !is_err {
+            is_err = img.save(format!("renders/{}.png", file_name)).is_err();
+        }
+        if is_err {
+            println!("Saving file to 'renders/{}.png' failed!", file_name);
+        } else {
+            println!("Saved file to 'renders/{}.png'", file_name);
+        }
+    });
 
-    let file_name = format!(
-        "Render {}-{}-{} {}-{}-{} {}x{}",
-        format!("{:0>2}", now.year()),
-        format!("{:0>2}", now.month()),
-        format!("{:0>2}", now.day()),
-        format!("{:0>2}", now.hour()),
-        format!("{:0>2}", now.minute()),
-        format!("{:0>2}", now.second()),
-        render_config.screenshot_resolution.0,
-        render_config.screenshot_resolution.1
-    );
-
-    let mut is_err = fs::create_dir_all("renders").is_err();
-    if !is_err {
-        is_err = img.save(format!("renders/{}.png", file_name)).is_err();
-    }
-    if is_err {
-        println!("Saving file to 'renders/{}.png' failed!", file_name);
-    } else {
-        println!("Saved file to 'renders/{}.png'", file_name);
-    }
+    buffer
 }
 
 pub fn get_colour(
@@ -79,7 +93,7 @@ pub fn get_colour(
 fn get_direct_light(
     render_config: &RenderConfig,
     hit: &Intersection,
-    scene_object: &Box<dyn Object + Sync>,
+    scene_object: &Box<dyn Object + Sync + Send>,
     hit_index: usize,
 ) -> Colour {
     let normal = scene_object.get_normal(hit);
@@ -141,7 +155,7 @@ fn general_light_falloff(distance: f64) -> f64 {
 fn get_indirect_light(
     render_config: &RenderConfig,
     hit: &Intersection,
-    scene_object: &Box<dyn Object + Sync>,
+    scene_object: &Box<dyn Object + Sync + Send>,
     hit_index: usize,
     ray_count: u32,
     rng: &mut ThreadRng,
@@ -222,7 +236,7 @@ fn get_colour_recursively(
     rng: &mut ThreadRng,
 ) -> Colour {
     let mut closest_dist = f64::INFINITY;
-    let mut closest_object = None;
+    let mut closest_object: Option<&Box<dyn Object + Sync + Send>> = None;
     let mut closest_hit = None;
     let mut closest_hit_index = None;
 
@@ -244,11 +258,7 @@ fn get_colour_recursively(
     }
 
     if !closest_hit.is_some() {
-        let offset = if ray.vector.y == 0.0 {
-            0.00001
-        } else {
-            0.0
-        };
+        let offset = if ray.vector.y == 0.0 { 0.00001 } else { 0.0 };
 
         let bg_pos = ray.point
             + ((ray.vector + V3::new(0.0, offset, 0.0))

@@ -1,5 +1,5 @@
 extern crate fs_extra;
-use fs_extra::dir::{copy, CopyOptions};
+use fs_extra::dir::{CopyOptions, copy};
 use std::env;
 use std::path::PathBuf;
 // use std::fs;
@@ -15,7 +15,7 @@ fn main() {
         .unwrap()
         .parent()
         .unwrap(); //.join("static");
-                   // fs::create_dir_all(&target_dir).unwrap();
+    // fs::create_dir_all(&target_dir).unwrap();
     let mut options = CopyOptions::new();
     options.overwrite = true;
     copy("static", target_dir, &options).unwrap();

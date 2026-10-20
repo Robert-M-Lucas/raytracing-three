@@ -1,5 +1,5 @@
 use crate::{
-    colour::{colour_getters::ColourGetter, Colour},
+    colour::{Colour, colour_getters::ColourGetter},
     lights::Light,
     objects::Object,
 };
@@ -12,10 +12,10 @@ pub struct RenderConfig {
     // pub diffusive_constant: f64,
     pub sky_height: f64,
     pub sky_scale: f64,
-    pub sky_texture: Box<dyn ColourGetter + Sync>,
+    pub sky_texture: Box<dyn ColourGetter + Sync + Send>,
     pub global_light: Colour,
-    pub scene_objects: Vec<Box<dyn Object + Sync>>,
-    pub scene_lights: Vec<Box<dyn Light + Sync>>,
+    pub scene_objects: Vec<Box<dyn Object + Sync + Send>>,
+    pub scene_lights: Vec<Box<dyn Light + Sync + Send>>,
     pub enable_full_bright: bool,
     pub screenshot_enable_full_bright: bool,
     pub enable_direct_lighting: bool,

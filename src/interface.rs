@@ -1,27 +1,60 @@
 use std::f64::consts::PI;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Instant;
 
 use crate::maths::vectors::V3;
 use crate::rendering::{self, Camera, RenderConfig};
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
+use sdl2::EventPump;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::video::Window;
-use sdl2::EventPump;
+
+#[derive(Clone)]
+pub struct PixelArena {
+    pub pixel_arena: Arc<[AtomicU8]>,
+    resolution: (u32, u32),
+}
+
+impl PixelArena {
+    pub fn new(resolution: (u32, u32)) -> Self {
+        let byte_count = (resolution.0 as usize) * (resolution.1 as usize) * 3;
+        let pixel_arena = (0..byte_count)
+            .map(|_| AtomicU8::new(0))
+            .collect::<Vec<_>>()
+            .into();
+
+        Self {
+            pixel_arena,
+            resolution,
+        }
+    }
+
+    pub fn ref_count(&self) -> usize {
+        Arc::strong_count(&self.pixel_arena)
+    }
+
+    pub fn resolution(&self) -> (u32, u32) {
+        self.resolution
+    }
+}
 
 pub struct Interface {
-    render_config: RenderConfig,
+    render_config: Arc<RenderConfig>,
+    window_resolution: (u32, u32),
     camera: Camera,
     rng: ThreadRng,
 }
 
 impl Interface {
-    pub fn start(render_config: RenderConfig, camera: Camera) {
+    pub fn start(render_config: RenderConfig, camera: Camera, window_resolution: (u32, u32)) {
         let mut this = Self {
-            render_config,
+            render_config: Arc::new(render_config),
+            window_resolution,
             camera,
             rng: thread_rng(),
         };
@@ -30,36 +63,74 @@ impl Interface {
 
         let mut now = Instant::now();
 
+        let mut display_override: Option<PixelArena> = None;
+
         'running: loop {
             let delta_time = now.elapsed().as_secs_f64();
             now = Instant::now();
 
-            let exit = Self::handle_input(&mut this, &mut event_pump, delta_time);
-            if exit {
-                break 'running;
+            if display_override
+                .as_ref()
+                .is_some_and(|d| d.ref_count() == 1)
+            {
+                display_override = None;
             }
 
-            let mut pixel_data =
-                this.camera
-                    .get_image(&this.render_config, &mut this.rng, false, false);
-            // let mut pixel_data = this.camera.get_image_threaded(&this.render_config, false);
+            if let Some(display_override) = &display_override {
+                for _event in event_pump.poll_iter() {}
 
-            let surface = Surface::from_data(
-                &mut pixel_data,
-                this.render_config.resolution.0,
-                this.render_config.resolution.1,
-                3 * this.render_config.resolution.0,
-                sdl2::pixels::PixelFormatEnum::RGB24,
-            )
-            .unwrap();
+                let mut snapshot: Vec<u8> = display_override
+                    .pixel_arena
+                    .iter()
+                    .map(|byte| byte.load(Ordering::Relaxed))
+                    .collect();
 
-            canvas
-                .copy(
-                    &surface.as_texture(&canvas.texture_creator()).unwrap(),
-                    None,
-                    None,
+                let surface = Surface::from_data(
+                    snapshot.as_mut(),
+                    display_override.resolution.0,
+                    display_override.resolution.1,
+                    3 * display_override.resolution.0,
+                    sdl2::pixels::PixelFormatEnum::RGB24,
                 )
                 .unwrap();
+
+                canvas
+                    .copy(
+                        &surface.as_texture(&canvas.texture_creator()).unwrap(),
+                        None,
+                        None,
+                    )
+                    .unwrap();
+            } else {
+                let (exit, new_display_override) =
+                    Self::handle_input(&mut this, &mut event_pump, delta_time);
+                if exit {
+                    break 'running;
+                }
+                display_override = new_display_override;
+
+                let mut pixel_data =
+                    this.camera
+                        .get_image(&this.render_config, &mut this.rng, false, false);
+
+                let surface = Surface::from_data(
+                    &mut pixel_data,
+                    this.render_config.resolution.0,
+                    this.render_config.resolution.1,
+                    3 * this.render_config.resolution.0,
+                    sdl2::pixels::PixelFormatEnum::RGB24,
+                )
+                .unwrap();
+
+                canvas
+                    .copy(
+                        &surface.as_texture(&canvas.texture_creator()).unwrap(),
+                        None,
+                        None,
+                    )
+                    .unwrap();
+            };
+
             canvas.present();
         }
     }
@@ -77,8 +148,8 @@ impl Interface {
         let window = video_subsystem
             .window(
                 "Raytracing",
-                self.render_config.resolution.0,
-                self.render_config.resolution.1,
+                self.window_resolution.0,
+                self.window_resolution.1,
             )
             .position_centered()
             .build()
@@ -93,14 +164,18 @@ impl Interface {
         (canvas, event_pump)
     }
 
-    fn handle_input(&mut self, event_pump: &mut EventPump, delta_time: f64) -> bool {
+    fn handle_input(
+        &mut self,
+        event_pump: &mut EventPump,
+        delta_time: f64,
+    ) -> (bool, Option<PixelArena>) {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
                 | Event::KeyDown {
                     keycode: Some(Keycode::P),
                     ..
-                } => return true,
+                } => return (true, None),
                 Event::MouseMotion {
                     xrel: x, yrel: y, ..
                 } => {
@@ -174,7 +249,14 @@ impl Interface {
                             * (delta_time * 1.0));
                 }
                 Keycode::M => {
-                    rendering::take_screenshot(&self.camera, &self.render_config, &mut self.rng);
+                    return (
+                        false,
+                        Some(rendering::take_screenshot(
+                            &self.camera,
+                            self.render_config.clone(),
+                            &mut self.rng,
+                        )),
+                    );
                 }
                 _ => {}
             }
@@ -186,6 +268,6 @@ impl Interface {
             self.camera.rotation.1 = -(PI / 2.0);
         }
 
-        false
+        (false, None)
     }
 }

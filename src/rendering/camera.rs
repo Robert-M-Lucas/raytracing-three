@@ -1,10 +1,11 @@
 use std::cell::RefCell;
+use std::sync::atomic::Ordering;
 use std::thread;
 
+use crate::interface::PixelArena;
+use crate::maths::{lines::Line, vectors::V3};
 use rand::{rngs::ThreadRng, thread_rng};
 use rayon::prelude::*;
-
-use crate::maths::{lines::Line, vectors::V3};
 
 use super::RenderConfig;
 
@@ -69,23 +70,44 @@ impl Camera {
         data
     }
 
-    pub fn get_image_threaded(&self, render_config: &RenderConfig) -> Vec<u8> {
-        let resolution;
-        let is_screenshot = true;
-        if is_screenshot {
-            resolution = render_config.screenshot_resolution
+    pub fn get_image_threaded_buffer(
+        &self,
+        render_config: &RenderConfig,
+        is_screenshot: bool,
+    ) -> PixelArena {
+        let resolution = if is_screenshot {
+            render_config.screenshot_resolution
         } else {
-            resolution = render_config.resolution;
+            render_config.resolution
+        };
+
+        PixelArena::new(resolution)
+    }
+
+    pub fn get_image_threaded(
+        &self,
+        render_config: &RenderConfig,
+        is_screenshot: bool,
+        buffer: PixelArena,
+    ) -> Vec<u8> {
+        let resolution = if is_screenshot {
+            render_config.screenshot_resolution
+        } else {
+            render_config.resolution
+        };
+
+        if buffer.resolution() != resolution {
+            panic!("Buffer resolution does not match render config");
         }
 
         thread_local!(static STORE: RefCell<Option<ThreadRng>> = RefCell::new(None));
 
         const PIXEL_GROUP: usize = 100;
 
-        let data: Vec<Vec<(u8, u8, u8)>> = (0..(resolution.0 * resolution.1))
+        (0..(resolution.0 * resolution.1))
             .into_par_iter()
             .chunks(PIXEL_GROUP)
-            .map(|is| {
+            .for_each(|is| {
                 STORE.with(|cell| {
                     let mut local_store = cell.borrow_mut();
                     if local_store.is_none() {
@@ -94,8 +116,8 @@ impl Camera {
 
                     let rng = local_store.as_mut().unwrap();
 
-                    let mut result = Vec::with_capacity(PIXEL_GROUP);
-                    for i in is {
+                    for i in is.into_iter() {
+                        let global_pixel_idx = (i * 3) as usize;
                         let x = i % resolution.0;
                         let y = i / resolution.0;
 
@@ -117,25 +139,19 @@ impl Camera {
                         let colour =
                             super::get_colour(ray, render_config, rng, is_screenshot).as_u8();
 
-                        result.push((colour.0, colour.1, colour.2));
+                        // Store bytes directly into the mutually exclusive regions of the buffer
+                        buffer.pixel_arena[global_pixel_idx].store(colour.0, Ordering::Relaxed);
+                        buffer.pixel_arena[global_pixel_idx + 1].store(colour.1, Ordering::Relaxed);
+                        buffer.pixel_arena[global_pixel_idx + 2].store(colour.2, Ordering::Relaxed);
                     }
+                });
+            });
 
-                    result
-                })
-            })
-            .collect();
-
-        let mut flattened_data = Vec::with_capacity((resolution.0 * resolution.1 * 3) as usize);
-
-        for result in data {
-            for c in result {
-                flattened_data.push(c.0);
-                flattened_data.push(c.1);
-                flattened_data.push(c.2);
-            }
-        }
-
-        flattened_data
+        buffer
+            .pixel_arena
+            .iter()
+            .map(|byte| byte.load(Ordering::Relaxed))
+            .collect()
     }
 
     //noinspection DuplicatedCode
