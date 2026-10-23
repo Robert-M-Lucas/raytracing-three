@@ -1,18 +1,19 @@
-use std::f64::consts::PI;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Instant;
-
+use num_traits::FloatConst;
 use crate::maths::vectors::V3;
-use crate::rendering::{self, Camera, RenderConfig};
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use sdl2::EventPump;
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
+use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::video::Window;
+use crate::FSize;
+use crate::rendering::camera::Camera;
+use crate::rendering::render_config::RenderConfig;
 
 #[derive(Clone)]
 pub struct PixelArena {
@@ -66,7 +67,7 @@ impl Interface {
         let mut display_override: Option<PixelArena> = None;
 
         'running: loop {
-            let delta_time = now.elapsed().as_secs_f64();
+            let delta_time = now.elapsed().as_secs_f64() as FSize;
             now = Instant::now();
 
             if display_override
@@ -167,7 +168,7 @@ impl Interface {
     fn handle_input(
         &mut self,
         event_pump: &mut EventPump,
-        delta_time: f64,
+        delta_time: FSize,
     ) -> (bool, Option<PixelArena>) {
         for event in event_pump.poll_iter() {
             match event {
@@ -179,93 +180,81 @@ impl Interface {
                 Event::MouseMotion {
                     xrel: x, yrel: y, ..
                 } => {
-                    self.camera.rotation.1 -= (y as f64) / 1000.0;
-                    self.camera.rotation.0 -= (x as f64) / 1000.0
+                    self.camera.rotation.1 -= (y as FSize) / 1000.0;
+                    self.camera.rotation.0 -= (x as FSize) / 1000.0
                 }
                 _ => {}
             }
         }
 
         let keyboard_state = event_pump.keyboard_state();
+        let down = |sc: Scancode| keyboard_state.is_scancode_pressed(sc);
 
-        let keys = keyboard_state
-            .pressed_scancodes()
-            .filter_map(Keycode::from_scancode);
+        let yaw = self.camera.rotation.0;
+        let fast = delta_time * 20.0;
+        let slow = delta_time * 1.0;
 
-        for k in keys {
-            match k {
-                Keycode::W => {
-                    self.camera.position = &self.camera.position
-                        + &(&V3::FORWARD.rotate_y(&V3::ZERO, self.camera.rotation.0)
-                            * (delta_time * 20.0));
-                }
-                Keycode::A => {
-                    self.camera.position = &self.camera.position
-                        + &(&V3::LEFT.rotate_y(&V3::ZERO, self.camera.rotation.0)
-                            * (delta_time * 20.0));
-                }
-                Keycode::S => {
-                    self.camera.position = &self.camera.position
-                        + &(&V3::BACK.rotate_y(&V3::ZERO, self.camera.rotation.0)
-                            * (delta_time * 20.0));
-                }
-                Keycode::D => {
-                    self.camera.position = &self.camera.position
-                        + &(&V3::RIGHT.rotate_y(&V3::ZERO, self.camera.rotation.0)
-                            * (delta_time * 20.0));
-                }
-                Keycode::Space => {
-                    self.camera.position = &self.camera.position + &(&V3::UP * (delta_time * 20.0));
-                }
-                Keycode::C | Keycode::LCtrl => {
-                    self.camera.position =
-                        &self.camera.position + &(&V3::DOWN * (delta_time * 20.0));
-                }
-                Keycode::Q => {
-                    self.camera.position = &self.camera.position + &(&V3::UP * (delta_time * 1.0));
-                }
-                Keycode::E => {
-                    self.camera.position =
-                        &self.camera.position + &(&V3::DOWN * (delta_time * 1.0));
-                }
-                Keycode::Up => {
-                    self.camera.position = &self.camera.position
-                        + &(&V3::FORWARD.rotate_y(&V3::ZERO, self.camera.rotation.0)
-                            * (delta_time * 1.0));
-                }
-                Keycode::Left => {
-                    self.camera.position = &self.camera.position
-                        + &(&V3::LEFT.rotate_y(&V3::ZERO, self.camera.rotation.0)
-                            * (delta_time * 1.0));
-                }
-                Keycode::Down => {
-                    self.camera.position = &self.camera.position
-                        + &(&V3::BACK.rotate_y(&V3::ZERO, self.camera.rotation.0)
-                            * (delta_time * 1.0));
-                }
-                Keycode::Right => {
-                    self.camera.position = &self.camera.position
-                        + &(&V3::RIGHT.rotate_y(&V3::ZERO, self.camera.rotation.0)
-                            * (delta_time * 1.0));
-                }
-                Keycode::M => {
-                    return (
-                        false,
-                        Some(rendering::take_screenshot(
-                            &self.camera,
-                            self.render_config.clone(),
-                            &mut self.rng,
-                        )),
-                    );
-                }
-                _ => {}
-            }
+        // Fast movement (WASD / Space / C / Ctrl)
+        if down(Scancode::W) {
+            self.camera.position =
+                &self.camera.position + &(&V3::FORWARD.rotate_y(&V3::ZERO, yaw) * fast);
+        }
+        if down(Scancode::A) {
+            self.camera.position =
+                &self.camera.position + &(&V3::LEFT.rotate_y(&V3::ZERO, yaw) * fast);
+        }
+        if down(Scancode::S) {
+            self.camera.position =
+                &self.camera.position + &(&V3::BACK.rotate_y(&V3::ZERO, yaw) * fast);
+        }
+        if down(Scancode::D) {
+            self.camera.position =
+                &self.camera.position + &(&V3::RIGHT.rotate_y(&V3::ZERO, yaw) * fast);
+        }
+        if down(Scancode::Space) {
+            self.camera.position = &self.camera.position + &(&V3::UP * fast);
+        }
+        if down(Scancode::C) || down(Scancode::LCtrl) {
+            self.camera.position = &self.camera.position + &(&V3::DOWN * fast);
         }
 
-        if self.camera.rotation.1 > (PI / 2.0) {
-            self.camera.rotation.1 = PI / 2.0;
-        } else if self.camera.rotation.1 < -(PI / 2.0) {
-            self.camera.rotation.1 = -(PI / 2.0);
+        // Slow movement (Q/E and arrow keys)
+        if down(Scancode::Q) {
+            self.camera.position = &self.camera.position + &(&V3::UP * slow);
+        }
+        if down(Scancode::E) {
+            self.camera.position = &self.camera.position + &(&V3::DOWN * slow);
+        }
+        if down(Scancode::Up) {
+            self.camera.position =
+                &self.camera.position + &(&V3::FORWARD.rotate_y(&V3::ZERO, yaw) * slow);
+        }
+        if down(Scancode::Left) {
+            self.camera.position =
+                &self.camera.position + &(&V3::LEFT.rotate_y(&V3::ZERO, yaw) * slow);
+        }
+        if down(Scancode::Down) {
+            self.camera.position =
+                &self.camera.position + &(&V3::BACK.rotate_y(&V3::ZERO, yaw) * slow);
+        }
+        if down(Scancode::Right) {
+            self.camera.position =
+                &self.camera.position + &(&V3::RIGHT.rotate_y(&V3::ZERO, yaw) * slow);
+        }
+
+        if down(Scancode::M) {
+            // Some(rendering::take_screenshot(
+            //     &self.camera,
+            //     self.render_config.clone(),
+            //     &mut self.rng,
+            // ))
+            return (false, None);
+        }
+
+        if self.camera.rotation.1 > (FSize::PI() / 2.0) {
+            self.camera.rotation.1 = FSize::PI() / (2.0 as FSize);
+        } else if self.camera.rotation.1 < -(FSize::PI() / (2.0 as FSize)) {
+            self.camera.rotation.1 = -(FSize::PI() / (2.0 as FSize));
         }
 
         (false, None)

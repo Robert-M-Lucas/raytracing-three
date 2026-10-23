@@ -1,3 +1,4 @@
+use crate::FSize;
 use super::vectors::V3;
 
 #[allow(dead_code)]
@@ -16,7 +17,7 @@ impl Line {
         }
     }
 
-    pub fn scale(&self, scale: f64) -> V3 {
+    pub fn scale(&self, scale: FSize) -> V3 {
         return self.point + (self.vector * scale);
     }
 }
@@ -25,26 +26,26 @@ impl Line {
 #[derive(Debug, Clone, Copy)]
 pub struct SizedLine {
     pub line: Line,
-    pub scale: f64,
+    pub scale: FSize,
 }
 
 #[allow(dead_code)]
 impl SizedLine {
-    pub fn new(point: &V3, vector: &V3, scale: f64) -> Self {
+    pub fn new(point: &V3, vector: &V3, scale: FSize) -> Self {
         Self {
             line: Line::new(point, vector),
             scale,
         }
     }
 
-    pub fn from_line(line: &Line, scale: f64) -> Self {
+    pub fn from_line(line: &Line, scale: FSize) -> Self {
         Self {
             line: line.clone(),
             scale,
         }
     }
 
-    pub fn length(&self) -> f64 {
+    pub fn length(&self) -> FSize {
         self.line.vector.magnitude() * self.scale
     }
 }

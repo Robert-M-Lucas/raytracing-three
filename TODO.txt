@@ -1,0 +1,28 @@
+ARCHITECTURE
+
+1. Rework scene system
+    a. Hierarchy
+    b. Copyable
+    c. Bounding boxes / quick intersection system
+    d. Materials
+        i. Textures
+
+2. Add triangles
+
+3. OBJ loading
+
+4. Add system that would enable pre-raytracing steps i.e. photon mapping
+
+FEATURES
+
+5. Rework raytracing
+    a. Correct equations
+        i.   Specular Reflection
+        ii.  Diffuse Reflection
+        iii. Transparency/Translucency
+    b. Texture support
+6. Beyond
+    a. Light baking?
+    b. Photon mapping?
+    c. Path tracing?
+

@@ -1,0 +1,12 @@
+pub type Resolution = (u32, u32);
+pub const _16K: Resolution = (15360, 8640);
+pub const _8K: Resolution = (7680, 4320);
+pub const _4K: Resolution = (3840, 2160);
+pub const _1440P: Resolution = (2560, 1440);
+pub const _1080P: Resolution = (1920, 1080);
+pub const _720P: Resolution = (1280, 720);
+pub const _480P: Resolution = (864, 486);
+pub const _360P: Resolution = (640, 360);
+pub const _240P: Resolution = (432, 243);
+pub const _144P: Resolution = (256, 144);
+
