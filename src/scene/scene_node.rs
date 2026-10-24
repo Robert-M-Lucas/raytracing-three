@@ -21,7 +21,7 @@ pub struct SceneNode {
 impl SceneNode {
     pub fn new_empty() -> Self {
         Self {
-            transform: M4::default(),
+            transform: M4::identity(),
             node_type: SceneNodeType::Empty,
             children: Vec::new(),
         }
@@ -29,7 +29,7 @@ impl SceneNode {
 
     pub fn new_object(scene_object: SceneObject) -> Self {
         Self {
-            transform: M4::default(),
+            transform: M4::identity(),
             node_type: SceneNodeType::Object(scene_object),
             children: Vec::new(),
         }
@@ -37,7 +37,7 @@ impl SceneNode {
 
     pub fn new_camera(camera: Camera) -> Self {
         Self {
-            transform: M4::default(),
+            transform: M4::identity(),
             node_type: SceneNodeType::Camera(camera),
             children: Vec::new(),
         }
@@ -91,6 +91,17 @@ impl SceneNode {
             SceneNodeType::Object(scene_object) => Some(scene_object),
             SceneNodeType::Camera(_) => None,
         }
+    }
+
+    pub fn find_first_camera(&self) -> Option<&SceneNode> {
+        let mut queue = VecDeque::from([self]);
+        while let Some(node) = queue.pop_front() {
+            if node.camera().is_some() {
+                return Some(node);
+            }
+            queue.extend(node.children.iter());
+        }
+        None
     }
 
     pub fn find_first_camera_mut(&mut self) -> Option<&mut SceneNode> {

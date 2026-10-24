@@ -1,17 +1,21 @@
-use crate::scene::AABB;
-use std::fmt::Debug;
+use crate::{FSize, scene::geometry::mesh::Mesh};
 
-pub mod obj_mesh;
-pub mod sphere;
+pub mod mesh;
 
-pub trait Geometry: Send + Sync + Debug {
-    fn bounding_box(&self) -> AABB;
-
-    fn clone_box(&self) -> Box<dyn Geometry + Send + Sync>;
+/// - `Sphere`: radius `radius`, centred at origin (Tungsten scenes use radius 1 + node scale)
+/// - `Quad`: unit square in the XZ plane, centred, normal +Y
+/// - `Disk`: unit-radius disk in the XZ plane, normal +Y
+/// - `Cube`: axis-aligned cube spanning [-0.5, 0.5] on each axis
+#[derive(Clone, Debug)]
+pub enum Geometry {
+    Sphere(Sphere),
+    Quad,
+    Disk,
+    Cube,
+    Mesh(Mesh),
 }
 
-impl Clone for Box<dyn Geometry + Send + Sync> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
+#[derive(Clone, Debug)]
+pub struct Sphere {
+    pub radius: FSize,
 }

@@ -5,14 +5,14 @@ use dyn_clone::DynClone;
 use crate::{FSize, pipelines::buffer::Buffer, scene::scene_node::SceneNode, utils::Resolution};
 
 // (Scene, delta, time)
-pub trait SendTimestepFn: Fn(SceneNode, FSize, FSize) -> SceneNode + Send + DynClone {}
-impl<T: Fn(SceneNode, FSize, FSize) -> SceneNode + Send + Clone> SendTimestepFn for T {}
+pub trait SendTimestepFn: FnOnce(SceneNode, FSize, FSize) -> SceneNode + Send + DynClone {}
+impl<T: FnOnce(SceneNode, FSize, FSize) -> SceneNode + Send + Clone> SendTimestepFn for T {}
 
 pub type TimestepFunction = Box<dyn SendTimestepFn>;
 
 impl Clone for TimestepFunction {
     fn clone(&self) -> Self {
-        dyn_clone::clone_box(self)
+        dyn_clone::clone_box(&**self)
     }
 }
 
@@ -26,14 +26,14 @@ pub fn do_nothing_timestep() -> TimestepFunction {
     Box::new(|sn, _delta, _time| sn)
 }
 
-pub trait SendPipelineFn: Fn(GlobalRenderConfig, SceneNode, Buffer) + Send + DynClone {}
-impl<T: Fn(GlobalRenderConfig, SceneNode, Buffer) + Send + Clone> SendPipelineFn for T {}
+pub trait SendPipelineFn: FnOnce(GlobalRenderConfig, SceneNode, Buffer) + Send + DynClone {}
+impl<T: FnOnce(GlobalRenderConfig, SceneNode, Buffer) + Send + Clone> SendPipelineFn for T {}
 
 pub type RenderPipeline = Box<dyn SendPipelineFn>;
 
 impl Clone for RenderPipeline {
     fn clone(&self) -> Self {
-        dyn_clone::clone_box(self)
+        dyn_clone::clone_box(&**self)
     }
 }
 

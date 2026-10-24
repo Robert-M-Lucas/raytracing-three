@@ -1,21 +1,19 @@
 #![allow(dead_code)]
 
 use crate::interface::Interface;
+use crate::loaders::tungsten::load_tungsten_scene;
 use crate::pipelines::raytracer::{RaytracerConfig, raytracing_pipeline};
-use crate::pipelines::render_config::{
-    GlobalRenderConfig, MultiFrameConfig, PipelineConfig,
-};
+use crate::pipelines::render_config::{GlobalRenderConfig, MultiFrameConfig, PipelineConfig};
 use crate::scene::camera::Camera;
-use crate::scene::geometry::Geometry;
-use crate::scene::geometry::sphere::Sphere;
-use crate::scene::material::{LambertianMaterial, Material};
+use crate::scene::geometry::{Geometry, Sphere};
+use crate::scene::material::Material;
 use crate::scene::scene_node::SceneNode;
 use crate::scene::scene_object::SceneObject;
 use crate::scene::texture::Texture;
-use crate::scene::texture::solid_colour::SolidColorTexture;
-use crate::utils::{_240P, _720P, _1080P};
+use crate::utils::{_4K, _8K, _16K, _32K, _144P, _720P, _1080P};
 
 mod interface;
+mod loaders;
 mod maths;
 mod pipelines;
 mod scene;
@@ -25,33 +23,38 @@ pub type FSize = f32;
 
 fn main() {
     let pipeline_config = PipelineConfig {
-        render_config: GlobalRenderConfig {
-            resolution: _240P,
-        },
+        render_config: GlobalRenderConfig { resolution: _144P },
         render_pipeline: raytracing_pipeline(RaytracerConfig {}),
     };
 
-    let _screenshot_pipeline_config = PipelineConfig {
-        render_config: GlobalRenderConfig {
-            resolution: _1080P,
-        },
+    let screenshot_pipeline_config = PipelineConfig {
+        render_config: GlobalRenderConfig { resolution: _32K },
         render_pipeline: raytracing_pipeline(RaytracerConfig {}),
     };
 
     let multi_frame_config = MultiFrameConfig::none();
 
+    let load_path = "Hard-coded";
     let scene = SceneNode::new_empty()
         .with_child(Camera::default().scene_node())
         .with_child(
             SceneObject::new(
-                Sphere { radius: 5 as FSize }.clone_box(),
-                LambertianMaterial {
-                    albedo_texture: SolidColorTexture { color: v![1, 0, 0] }.clone_box()
-                }.clone_box()
-                ,
+                Geometry::Sphere(Sphere { radius: 5 as FSize }),
+                Material::lambert(Texture::Solid(v![1.0, 0.0, 0.0]))
             )
             .scene_node(),
         );
 
-    Interface::new(pipeline_config, multi_frame_config, scene, _720P).start();
+    // let load_path = "static/scenes/cornell-box";
+    // let scene = load_tungsten_scene(load_path).unwrap();
+
+    Interface::new(
+        load_path.to_string(),
+        pipeline_config,
+        Some(screenshot_pipeline_config),
+        multi_frame_config,
+        scene,
+        _720P,
+    )
+    .start();
 }

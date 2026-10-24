@@ -4,7 +4,7 @@ use crate::{FSize, maths::vector::V3, scene::texture::Texture};
 pub struct ImageTexture {
     pub width: u32,
     pub height: u32,
-    pub pixels: Vec<V3>, // Simplified raster storage
+    pub pixels: Vec<V3>, // Needs to be arced
 }
 
 impl Texture for ImageTexture {
@@ -15,7 +15,7 @@ impl Texture for ImageTexture {
         let idx = y * self.width as usize + x;
         self.pixels.get(idx).copied().unwrap_or(V3::ZERO)
     }
-    
+
     fn clone_box(&self) -> Box<dyn Texture + Send + Sync> {
         Box::new(self.clone())
     }

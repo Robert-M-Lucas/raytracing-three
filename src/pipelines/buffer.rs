@@ -3,6 +3,8 @@ use std::sync::{
     atomic::{AtomicU32, Ordering},
 };
 
+use crate::utils::Resolution;
+
 #[derive(Clone)]
 pub struct Buffer {
     pub pixel_arena: Arc<[AtomicU32]>,
@@ -11,12 +13,11 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    /// Creates a zeroed (transparent black) buffer.
     pub fn new(width: usize, height: usize) -> Self {
         let len = width
             .checked_mul(height)
             .expect("buffer dimensions overflow usize");
-        let pixel_arena: Arc<[AtomicU32]> = std::iter::repeat_with(|| AtomicU32::new(0))
+        let pixel_arena: Arc<[AtomicU32]> = std::iter::repeat_with(|| AtomicU32::new(0xFFFF00FF))
             .take(len)
             .collect();
         Self {
@@ -24,6 +25,10 @@ impl Buffer {
             width,
             height,
         }
+    }
+
+    pub fn from_resolution(resolution: Resolution) -> Self {
+        Buffer::new(resolution.0 as usize, resolution.1 as usize)
     }
 
     #[inline]
@@ -79,7 +84,12 @@ impl Buffer {
             self.pixel_arena.len() * 4,
             "output length mismatch"
         );
-        for (dst, src) in out.as_chunks_mut::<4>().0.iter_mut().zip(self.pixel_arena.iter()) {
+        for (dst, src) in out
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(self.pixel_arena.iter())
+        {
             dst.copy_from_slice(&src.load(Ordering::Relaxed).to_le_bytes());
         }
     }

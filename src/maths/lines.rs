@@ -39,10 +39,7 @@ impl SizedLine {
     }
 
     pub fn from_line(line: &Line, scale: FSize) -> Self {
-        Self {
-            line: *line,
-            scale,
-        }
+        Self { line: *line, scale }
     }
 
     pub fn length(&self) -> FSize {

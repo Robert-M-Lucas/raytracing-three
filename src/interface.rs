@@ -4,18 +4,22 @@ use crate::pipelines::render_config::{MultiFrameConfig, PipelineConfig};
 use crate::pipelines::{render_image, render_image_background};
 use crate::scene::scene_node::SceneNode;
 use crate::utils::Resolution;
-use image::buffer;
+use chrono::{Datelike, Timelike};
+use image::{DynamicImage, ImageBuffer, Rgba};
 use sdl2::EventPump;
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::video::Window;
+use std::fs;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 pub struct Interface {
+    title: String,
     pipeline_config: PipelineConfig,
+    screenshot_config: Option<PipelineConfig>,
     multi_frame_config: MultiFrameConfig,
     scene: SceneNode,
     window_resolution: Resolution,
@@ -24,13 +28,17 @@ pub struct Interface {
 
 impl Interface {
     pub fn new(
+        title: String,
         pipeline_config: PipelineConfig,
+        screenshot_config: Option<PipelineConfig>,
         multi_frame_config: MultiFrameConfig,
         scene: SceneNode,
         window_resolution: Resolution,
     ) -> Interface {
         Self {
+            title,
             pipeline_config,
+            screenshot_config,
             multi_frame_config,
             scene,
             window_resolution,
@@ -48,10 +56,16 @@ impl Interface {
             now = Instant::now();
 
             let render_progress = self.render_progress.lock().unwrap();
+
             let render_progress_buffer = render_progress.clone();
             drop(render_progress);
 
             if let Some(display_override) = &render_progress_buffer {
+                canvas
+                    .window_mut()
+                    .set_title(&format!("[SCREENSHOT] {}", self.title))
+                    .unwrap();
+
                 for _event in event_pump.poll_iter() {}
 
                 let mut snapshot: Vec<u8> = display_override.to_rgba_vec();
@@ -73,15 +87,23 @@ impl Interface {
                     )
                     .unwrap();
             } else {
+                canvas.window_mut().set_title(&self.title).unwrap();
+
                 let exit = self.handle_input(&mut event_pump, delta_time);
                 if exit {
                     break 'running;
                 }
+                if self.render_progress.lock().unwrap().is_some() {
+                    continue;
+                }
 
-                let buffer = render_image(self.pipeline_config.clone(), MultiFrameConfig::none());
+                let buffer = render_image(
+                    self.pipeline_config.clone(),
+                    self.scene.clone(),
+                    MultiFrameConfig::none(),
+                );
 
-                let mut image = buffer
-                    .to_rgba_vec();
+                let mut image = buffer.to_rgba_vec();
 
                 let surface = Surface::from_data(
                     image.as_mut(),
@@ -117,7 +139,7 @@ impl Interface {
 
         let window = video_subsystem
             .window(
-                "Raytracing",
+                &self.title,
                 self.window_resolution.0,
                 self.window_resolution.1,
             )
@@ -177,6 +199,8 @@ impl Interface {
         }
 
         if down(Scancode::M) {
+            println!("Taking screenshot");
+
             let mut render_progress = self.render_progress.lock().unwrap(); // Lock early to preserve order
 
             if render_progress.is_some() {
@@ -186,10 +210,48 @@ impl Interface {
             let render_progress_clone = self.render_progress.clone();
 
             let buffer = render_image_background(
-                self.pipeline_config.clone(),
+                if let Some(screenshot_config) = &self.screenshot_config {
+                    screenshot_config.clone()
+                } else {
+                    self.pipeline_config.clone()
+                },
+                self.scene.clone(),
                 self.multi_frame_config.clone(),
-                Some(move |_b| {
+                Some(move |buffer: Buffer| {
+                    println!("Screenshot complete");
                     *render_progress_clone.lock().unwrap() = None;
+
+                    let now = chrono::offset::Local::now();
+                    let file_name = format!(
+                        "Render {}-{}-{} {}-{}-{} {}x{}",
+                        format!("{:0>2}", now.year()),
+                        format!("{:0>2}", now.month()),
+                        format!("{:0>2}", now.day()),
+                        format!("{:0>2}", now.hour()),
+                        format!("{:0>2}", now.minute()),
+                        format!("{:0>2}", now.second()),
+                        buffer.width(),
+                        buffer.height()
+                    );
+                    let rgba = buffer.to_rgba_vec();
+                    let img = DynamicImage::ImageRgba8(
+                        ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
+                            buffer.width() as u32,
+                            buffer.height() as u32,
+                            rgba,
+                        )
+                        .unwrap(),
+                    );
+
+                    let mut is_err = fs::create_dir_all("renders").is_err();
+                    if !is_err {
+                        is_err = img.save(format!("renders/{}.png", file_name)).is_err();
+                    }
+                    if is_err {
+                        println!("Saving file to 'renders/{}.png' failed!", file_name);
+                    } else {
+                        println!("Saved file to 'renders/{}.png'", file_name);
+                    }
                 }),
             );
 

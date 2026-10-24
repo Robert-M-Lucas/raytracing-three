@@ -1,4 +1,5 @@
 pub type Resolution = (u32, u32);
+pub const _32K: Resolution = (30720, 17280);
 pub const _16K: Resolution = (15360, 8640);
 pub const _8K: Resolution = (7680, 4320);
 pub const _4K: Resolution = (3840, 2160);
