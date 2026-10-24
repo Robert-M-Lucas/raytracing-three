@@ -4,6 +4,7 @@ use crate::pipelines::render_config::{MultiFrameConfig, PipelineConfig};
 use crate::pipelines::{render_image, render_image_background};
 use crate::scene::scene_node::SceneNode;
 use crate::utils::Resolution;
+use image::buffer;
 use sdl2::EventPump;
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
@@ -76,8 +77,9 @@ impl Interface {
                 if exit {
                     break 'running;
                 }
-                
+
                 let buffer = render_image(self.pipeline_config.clone(), MultiFrameConfig::none());
+
                 let mut image = buffer
                     .to_rgba_vec();
 
