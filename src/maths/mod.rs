@@ -1,4 +1,4 @@
 pub mod intersection;
 pub mod lines;
-pub mod vectors;
-pub mod matrices;
+pub mod matrix;
+pub mod vector;

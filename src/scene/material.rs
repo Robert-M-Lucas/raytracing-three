@@ -1,6 +1,7 @@
-use std::fmt::Debug;
 use crate::FSize;
-use crate::scene::{Texture, V3};
+use crate::scene::V3;
+use crate::scene::texture::Texture;
+use std::fmt::Debug;
 
 pub trait Material: Send + Sync + Debug {
     fn clone_box(&self) -> Box<dyn Material + Send + Sync>;

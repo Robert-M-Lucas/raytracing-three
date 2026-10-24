@@ -1,97 +1,66 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
-use std::time::Instant;
-use num_traits::FloatConst;
-use crate::maths::vectors::V3;
-use rand::rngs::ThreadRng;
-use rand::thread_rng;
+use crate::FSize;
+use crate::pipelines::buffer::Buffer;
+use crate::pipelines::render_config::{MultiFrameConfig, PipelineConfig};
+use crate::pipelines::{render_image, render_image_background};
+use crate::scene::scene_node::SceneNode;
+use crate::utils::Resolution;
 use sdl2::EventPump;
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::video::Window;
-use crate::FSize;
-use crate::rendering::camera::Camera;
-use crate::rendering::render_config::RenderConfig;
-
-#[derive(Clone)]
-pub struct PixelArena {
-    pub pixel_arena: Arc<[AtomicU8]>,
-    resolution: (u32, u32),
-}
-
-impl PixelArena {
-    pub fn new(resolution: (u32, u32)) -> Self {
-        let byte_count = (resolution.0 as usize) * (resolution.1 as usize) * 3;
-        let pixel_arena = (0..byte_count)
-            .map(|_| AtomicU8::new(0))
-            .collect::<Vec<_>>()
-            .into();
-
-        Self {
-            pixel_arena,
-            resolution,
-        }
-    }
-
-    pub fn ref_count(&self) -> usize {
-        Arc::strong_count(&self.pixel_arena)
-    }
-
-    pub fn resolution(&self) -> (u32, u32) {
-        self.resolution
-    }
-}
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 pub struct Interface {
-    render_config: Arc<RenderConfig>,
-    window_resolution: (u32, u32),
-    camera: Camera,
-    rng: ThreadRng,
+    pipeline_config: PipelineConfig,
+    multi_frame_config: MultiFrameConfig,
+    scene: SceneNode,
+    window_resolution: Resolution,
+    render_progress: Arc<Mutex<Option<Buffer>>>,
 }
 
 impl Interface {
-    pub fn start(render_config: RenderConfig, camera: Camera, window_resolution: (u32, u32)) {
-        let mut this = Self {
-            render_config: Arc::new(render_config),
+    pub fn new(
+        pipeline_config: PipelineConfig,
+        multi_frame_config: MultiFrameConfig,
+        scene: SceneNode,
+        window_resolution: Resolution,
+    ) -> Interface {
+        Self {
+            pipeline_config,
+            multi_frame_config,
+            scene,
             window_resolution,
-            camera,
-            rng: thread_rng(),
-        };
+            render_progress: Arc::new(Mutex::new(None)),
+        }
+    }
 
-        let (mut canvas, mut event_pump) = Self::initialise_display(&this);
+    pub fn start(&mut self) {
+        let (mut canvas, mut event_pump) = self.initialise_display();
 
         let mut now = Instant::now();
-
-        let mut display_override: Option<PixelArena> = None;
 
         'running: loop {
             let delta_time = now.elapsed().as_secs_f64() as FSize;
             now = Instant::now();
 
-            if display_override
-                .as_ref()
-                .is_some_and(|d| d.ref_count() == 1)
-            {
-                display_override = None;
-            }
+            let render_progress = self.render_progress.lock().unwrap();
+            let render_progress_buffer = render_progress.clone();
+            drop(render_progress);
 
-            if let Some(display_override) = &display_override {
+            if let Some(display_override) = &render_progress_buffer {
                 for _event in event_pump.poll_iter() {}
 
-                let mut snapshot: Vec<u8> = display_override
-                    .pixel_arena
-                    .iter()
-                    .map(|byte| byte.load(Ordering::Relaxed))
-                    .collect();
+                let mut snapshot: Vec<u8> = display_override.to_rgba_vec();
 
                 let surface = Surface::from_data(
                     snapshot.as_mut(),
-                    display_override.resolution.0,
-                    display_override.resolution.1,
-                    3 * display_override.resolution.0,
-                    sdl2::pixels::PixelFormatEnum::RGB24,
+                    display_override.width() as u32,
+                    display_override.height() as u32,
+                    4 * display_override.width() as u32,
+                    sdl2::pixels::PixelFormatEnum::RGBA32,
                 )
                 .unwrap();
 
@@ -103,23 +72,21 @@ impl Interface {
                     )
                     .unwrap();
             } else {
-                let (exit, new_display_override) =
-                    Self::handle_input(&mut this, &mut event_pump, delta_time);
+                let exit = self.handle_input(&mut event_pump, delta_time);
                 if exit {
                     break 'running;
                 }
-                display_override = new_display_override;
-
-                let mut pixel_data =
-                    this.camera
-                        .get_image(&this.render_config, &mut this.rng, false, false);
+                
+                let buffer = render_image(self.pipeline_config.clone(), MultiFrameConfig::none());
+                let mut image = buffer
+                    .to_rgba_vec();
 
                 let surface = Surface::from_data(
-                    &mut pixel_data,
-                    this.render_config.resolution.0,
-                    this.render_config.resolution.1,
-                    3 * this.render_config.resolution.0,
-                    sdl2::pixels::PixelFormatEnum::RGB24,
+                    image.as_mut(),
+                    buffer.width() as u32,
+                    buffer.height() as u32,
+                    4 * buffer.width() as u32,
+                    sdl2::pixels::PixelFormatEnum::RGBA32,
                 )
                 .unwrap();
 
@@ -165,23 +132,19 @@ impl Interface {
         (canvas, event_pump)
     }
 
-    fn handle_input(
-        &mut self,
-        event_pump: &mut EventPump,
-        delta_time: FSize,
-    ) -> (bool, Option<PixelArena>) {
+    fn handle_input(&mut self, event_pump: &mut EventPump, delta_time: FSize) -> bool {
+        let (mut look_x, mut look_y) = (0.0 as FSize, 0.0 as FSize);
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
                 | Event::KeyDown {
                     keycode: Some(Keycode::P),
                     ..
-                } => return (true, None),
-                Event::MouseMotion {
-                    xrel: x, yrel: y, ..
-                } => {
-                    self.camera.rotation.1 -= (y as FSize) / 1000.0;
-                    self.camera.rotation.0 -= (x as FSize) / 1000.0
+                } => return true,
+                Event::MouseMotion { xrel, yrel, .. } => {
+                    look_x += xrel as FSize;
+                    look_y += yrel as FSize;
                 }
                 _ => {}
             }
@@ -189,74 +152,48 @@ impl Interface {
 
         let keyboard_state = event_pump.keyboard_state();
         let down = |sc: Scancode| keyboard_state.is_scancode_pressed(sc);
+        // +1 if any `pos` key is held, -1 if any `neg` key is held (cancel if both)
+        let axis = |pos: &[Scancode], neg: &[Scancode]| -> FSize {
+            (pos.iter().any(|&s| down(s)) as i32 - neg.iter().any(|&s| down(s)) as i32) as FSize
+        };
 
-        let yaw = self.camera.rotation.0;
         let fast = delta_time * 20.0;
         let slow = delta_time * 1.0;
 
-        // Fast movement (WASD / Space / C / Ctrl)
-        if down(Scancode::W) {
-            self.camera.position =
-                &self.camera.position + &(&V3::FORWARD.rotate_y(&V3::ZERO, yaw) * fast);
-        }
-        if down(Scancode::A) {
-            self.camera.position =
-                &self.camera.position + &(&V3::LEFT.rotate_y(&V3::ZERO, yaw) * fast);
-        }
-        if down(Scancode::S) {
-            self.camera.position =
-                &self.camera.position + &(&V3::BACK.rotate_y(&V3::ZERO, yaw) * fast);
-        }
-        if down(Scancode::D) {
-            self.camera.position =
-                &self.camera.position + &(&V3::RIGHT.rotate_y(&V3::ZERO, yaw) * fast);
-        }
-        if down(Scancode::Space) {
-            self.camera.position = &self.camera.position + &(&V3::UP * fast);
-        }
-        if down(Scancode::C) || down(Scancode::LCtrl) {
-            self.camera.position = &self.camera.position + &(&V3::DOWN * fast);
-        }
+        let right = fast * axis(&[Scancode::D], &[Scancode::A])
+            + slow * axis(&[Scancode::Right], &[Scancode::Left]);
+        let forward = fast * axis(&[Scancode::W], &[Scancode::S])
+            + slow * axis(&[Scancode::Up], &[Scancode::Down]);
+        let up = fast * axis(&[Scancode::Space], &[Scancode::C, Scancode::LCtrl])
+            + slow * axis(&[Scancode::Q], &[Scancode::E]);
 
-        // Slow movement (Q/E and arrow keys)
-        if down(Scancode::Q) {
-            self.camera.position = &self.camera.position + &(&V3::UP * slow);
-        }
-        if down(Scancode::E) {
-            self.camera.position = &self.camera.position + &(&V3::DOWN * slow);
-        }
-        if down(Scancode::Up) {
-            self.camera.position =
-                &self.camera.position + &(&V3::FORWARD.rotate_y(&V3::ZERO, yaw) * slow);
-        }
-        if down(Scancode::Left) {
-            self.camera.position =
-                &self.camera.position + &(&V3::LEFT.rotate_y(&V3::ZERO, yaw) * slow);
-        }
-        if down(Scancode::Down) {
-            self.camera.position =
-                &self.camera.position + &(&V3::BACK.rotate_y(&V3::ZERO, yaw) * slow);
-        }
-        if down(Scancode::Right) {
-            self.camera.position =
-                &self.camera.position + &(&V3::RIGHT.rotate_y(&V3::ZERO, yaw) * slow);
+        if let Some(camera_node) = self.scene.find_first_camera_mut() {
+            camera_node
+                .transform
+                .fps_look(-look_x / 1000.0, -look_y / 1000.0);
+            camera_node.transform.fps_translate(right, up, forward);
         }
 
         if down(Scancode::M) {
-            // Some(rendering::take_screenshot(
-            //     &self.camera,
-            //     self.render_config.clone(),
-            //     &mut self.rng,
-            // ))
-            return (false, None);
+            let mut render_progress = self.render_progress.lock().unwrap(); // Lock early to preserve order
+
+            if render_progress.is_some() {
+                return false; // Render in progress
+            }
+
+            let render_progress_clone = self.render_progress.clone();
+
+            let buffer = render_image_background(
+                self.pipeline_config.clone(),
+                self.multi_frame_config.clone(),
+                Some(move |_b| {
+                    *render_progress_clone.lock().unwrap() = None;
+                }),
+            );
+
+            *render_progress = Some(buffer);
         }
 
-        if self.camera.rotation.1 > (FSize::PI() / 2.0) {
-            self.camera.rotation.1 = FSize::PI() / (2.0 as FSize);
-        } else if self.camera.rotation.1 < -(FSize::PI() / (2.0 as FSize)) {
-            self.camera.rotation.1 = -(FSize::PI() / (2.0 as FSize));
-        }
-
-        (false, None)
+        false
     }
 }

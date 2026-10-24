@@ -1,19 +1,19 @@
-use std::{fmt, ops};
 use crate::FSize;
+use std::{fmt, ops};
 
 #[macro_export]
 macro_rules! m {
     (r[$($x:expr),+ $(,)?]; $n:expr) => {
-        $crate::maths::matrices::M::new_m([[$($x as $crate::FSize),+]; $n])
+        $crate::maths::matrix::M::new_m([[$($x as $crate::FSize),+]; $n])
     };
     (c[$($x:expr),+ $(,)?]; $n:expr) => {
-        $crate::maths::matrices::M::new_m([$([$x as $crate::FSize; $n]),+])
+        $crate::maths::matrix::M::new_m([$([$x as $crate::FSize; $n]),+])
     };
     ($elem:expr; $r:expr, $c:expr) => {
-        $crate::maths::matrices::M::new_m([[$elem as $crate::FSize; $c]; $r])
+        $crate::maths::matrix::M::new_m([[$elem as $crate::FSize; $c]; $r])
     };
     ($([$($x:expr),+ $(,)?]),+ $(,)?) => {
-        $crate::maths::matrices::M::new_m([
+        $crate::maths::matrix::M::new_m([
             $([$($x as $crate::FSize),+]),+
         ])
     };
@@ -23,8 +23,6 @@ macro_rules! m {
 pub struct M<const R: usize, const C: usize> {
     pub data: [[FSize; C]; R],
 }
-
-pub type M4 = M<4,4>;
 
 impl<const R: usize, const C: usize> M<R, C> {
     pub const ZERO: Self = M {
@@ -40,7 +38,7 @@ impl<const R: usize, const C: usize> M<R, C> {
     }
 }
 
-impl<const R: usize, const C: usize> Default for M<R,C> {
+impl<const R: usize, const C: usize> Default for M<R, C> {
     fn default() -> Self {
         Self::new_m([[0 as FSize; C]; R])
     }
@@ -84,9 +82,8 @@ impl<const R: usize, const C: usize> fmt::Display for M<R, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let precision = f.precision().unwrap_or(DEFAULT_DISPLAY_PRECISION);
 
-        let cells: [[String; C]; R] = std::array::from_fn(|i| {
-            std::array::from_fn(|j| fmt_cell(self.data[i][j], precision))
-        });
+        let cells: [[String; C]; R] =
+            std::array::from_fn(|i| std::array::from_fn(|j| fmt_cell(self.data[i][j], precision)));
 
         let mut widths = [0usize; C];
         for row in &cells {
@@ -98,8 +95,7 @@ impl<const R: usize, const C: usize> fmt::Display for M<R, C> {
         for (i, row) in cells.iter().enumerate() {
             if i == 0 {
                 f.write_str("[")?;
-            }
-            else {
+            } else {
                 writeln!(f)?;
                 f.write_str(" ")?;
             }
@@ -113,8 +109,7 @@ impl<const R: usize, const C: usize> fmt::Display for M<R, C> {
 
             if i == R - 1 {
                 f.write_str("]")?;
-            }
-            else {
+            } else {
                 f.write_str(" ")?;
             }
         }
@@ -302,5 +297,123 @@ impl<const R: usize, const C: usize> ops::Div<FSize> for &M<R, C> {
             }
         }
         M { data }
+    }
+}
+
+pub type M4 = M<4, 4>;
+
+const CAMERA_PITCH_LIMIT: FSize = std::f64::consts::FRAC_PI_2 as FSize - 0.001;
+impl M4 {
+    pub fn identity() -> Self {
+        let mut data = [[0.0; 4]; 4];
+        data[0][0] = 1.0;
+        data[1][1] = 1.0;
+        data[2][2] = 1.0;
+        data[3][3] = 1.0;
+        Self { data }
+    }
+
+    pub fn translation(x: FSize, y: FSize, z: FSize) -> Self {
+        let mut m = Self::identity();
+        m.data[0][3] = x;
+        m.data[1][3] = y;
+        m.data[2][3] = z;
+        m
+    }
+
+    pub fn scaling(x: FSize, y: FSize, z: FSize) -> Self {
+        let mut m = Self::identity();
+        m.data[0][0] = x;
+        m.data[1][1] = y;
+        m.data[2][2] = z;
+        m
+    }
+
+    pub fn rotation_x(angle: FSize) -> Self {
+        let (sin, cos) = angle.sin_cos();
+        let mut m = Self::identity();
+        m.data[1][1] = cos;
+        m.data[1][2] = -sin;
+        m.data[2][1] = sin;
+        m.data[2][2] = cos;
+        m
+    }
+
+    pub fn rotation_y(angle: FSize) -> Self {
+        let (sin, cos) = angle.sin_cos();
+        let mut m = Self::identity();
+        m.data[0][0] = cos;
+        m.data[0][2] = sin;
+        m.data[2][0] = -sin;
+        m.data[2][2] = cos;
+        m
+    }
+
+    pub fn rotation_z(angle: FSize) -> Self {
+        let (sin, cos) = angle.sin_cos();
+        let mut m = Self::identity();
+        m.data[0][0] = cos;
+        m.data[0][1] = -sin;
+        m.data[1][0] = sin;
+        m.data[1][1] = cos;
+        m
+    }
+
+    pub fn translated(&self, x: FSize, y: FSize, z: FSize) -> Self {
+        self.cross(&Self::translation(x, y, z))
+    }
+
+    pub fn position(&self) -> (FSize, FSize, FSize) {
+        (self.data[0][3], self.data[1][3], self.data[2][3])
+    }
+
+    pub fn set_position(&mut self, x: FSize, y: FSize, z: FSize) {
+        self.data[0][3] = x;
+        self.data[1][3] = y;
+        self.data[2][3] = z;
+    }
+
+    pub fn translate_world(&mut self, x: FSize, y: FSize, z: FSize) {
+        self.data[0][3] += x;
+        self.data[1][3] += y;
+        self.data[2][3] += z;
+    }
+
+    pub fn yaw(&self) -> FSize {
+        (-self.data[2][0]).atan2(self.data[0][0])
+    }
+
+    pub fn pitch(&self) -> FSize {
+        (-self.data[1][2]).atan2(self.data[1][1])
+    }
+
+    pub fn fps_camera(x: FSize, y: FSize, z: FSize, yaw: FSize, pitch: FSize) -> Self {
+        Self::translation(x, y, z)
+            .rotated_y(yaw)
+            .rotated_x(pitch.clamp(-CAMERA_PITCH_LIMIT, CAMERA_PITCH_LIMIT))
+    }
+
+    pub fn fps_look(&mut self, d_yaw: FSize, d_pitch: FSize) {
+        let (x, y, z) = self.position();
+        *self = Self::fps_camera(x, y, z, self.yaw() + d_yaw, self.pitch() + d_pitch);
+    }
+
+    pub fn fps_translate(&mut self, right: FSize, up: FSize, forward: FSize) {
+        let (s, c) = self.yaw().sin_cos();
+        self.translate_world(c * right - s * forward, up, -s * right - c * forward);
+    }
+
+    pub fn scaled(&self, x: FSize, y: FSize, z: FSize) -> Self {
+        self.cross(&Self::scaling(x, y, z))
+    }
+    pub fn rotated_x(&self, angle: FSize) -> Self {
+        self.cross(&Self::rotation_x(angle))
+    }
+    pub fn rotated_y(&self, angle: FSize) -> Self {
+        self.cross(&Self::rotation_y(angle))
+    }
+
+    pub fn rotated_z(&self, angle: FSize) -> Self {
+        self.cross(&Self::rotation_z(angle))
     }
 }

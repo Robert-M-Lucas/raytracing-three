@@ -13,6 +13,7 @@ num_cpus = "1.15.0"
 rayon = "1.6.1"
 rand = "0.8.5"
 num-traits = "0.2.19"
+dyn-clone = "1.0.20"
 
 [target.'cfg(windows)'.dependencies.sdl2]
 version = "0.38.0"

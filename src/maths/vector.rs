@@ -1,13 +1,13 @@
 use crate::FSize;
-use crate::maths::matrices::M;
+use crate::maths::matrix::M;
 
 #[macro_export]
 macro_rules! v {
     ($elem:expr; $n:expr) => {
-        $crate::maths::vectors::V::new_v([$elem as $crate::FSize; $n])
+        $crate::maths::vector::V::new_v([$elem as $crate::FSize; $n])
     };
     ($($x:expr),+ $(,)?) => {
-        $crate::maths::vectors::V::new_v([$($x as $crate::FSize),+])
+        $crate::maths::vector::V::new_v([$($x as $crate::FSize),+])
     };
 }
 
@@ -44,16 +44,14 @@ impl<const N: usize> V<N> {
 
     pub fn reflected(&self, normal: &V<N>) -> V<N> {
         let n = normal.normalised();
-        self.clone() - (n * (2.0 * (self.dot(&n))))
+        *self - (n * (2.0 * (self.dot(&n))))
     }
 }
 
 pub type V2 = V<2>;
 impl V2 {
     pub const fn new_v2(x: FSize, y: FSize) -> Self {
-        Self {
-            data: [[x], [y]],
-        }
+        Self { data: [[x], [y]] }
     }
 
     pub const fn x(&self) -> FSize {
@@ -88,7 +86,6 @@ impl V2 {
         data: [[1.0], [0.0]],
     };
 }
-
 
 pub type V3 = V<3>;
 
@@ -125,7 +122,7 @@ impl V3 {
 
     pub fn rotate_y(self, about: &V3, radians: FSize) -> V3 {
         let centered = self - about;
-        &V3::new_v3(
+        V3::new_v3(
             centered.x() * radians.cos() + centered.z() * radians.sin(),
             centered.y(),
             -centered.x() * radians.sin() + centered.z() * radians.cos(),
@@ -134,13 +131,12 @@ impl V3 {
 
     pub fn rotate_z(self, about: &V3, radians: FSize) -> V3 {
         let centered = self - about;
-        &V3::new_v3(
+        V3::new_v3(
             centered.x() * radians.cos() - centered.y() * radians.sin(),
             centered.x() * radians.sin() + centered.y() * radians.cos(),
             centered.z(),
         ) + about
     }
-
 
     pub const FORWARD: V3 = V3 {
         data: [[1.0], [0.0], [0.0]],

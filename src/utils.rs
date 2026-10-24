@@ -9,4 +9,3 @@ pub const _480P: Resolution = (864, 486);
 pub const _360P: Resolution = (640, 360);
 pub const _240P: Resolution = (432, 243);
 pub const _144P: Resolution = (256, 144);
-

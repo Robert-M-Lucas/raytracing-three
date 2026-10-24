@@ -1,30 +1,57 @@
+#![allow(dead_code)]
+
 use crate::interface::Interface;
-use crate::maths::vectors::V3;
-use crate::rendering::camera::Camera;
-use crate::rendering::render_config::RenderConfig;
-use crate::utils::{_1080P, _240P, _720P};
+use crate::pipelines::raytracer::{RaytracerConfig, raytracing_pipeline};
+use crate::pipelines::render_config::{
+    GlobalRenderConfig, MultiFrameConfig, PipelineConfig,
+};
+use crate::scene::camera::Camera;
+use crate::scene::geometry::Geometry;
+use crate::scene::geometry::sphere::Sphere;
+use crate::scene::material::{LambertianMaterial, Material};
+use crate::scene::scene_node::SceneNode;
+use crate::scene::scene_object::SceneObject;
+use crate::scene::texture::Texture;
+use crate::scene::texture::solid_colour::SolidColorTexture;
+use crate::utils::{_240P, _720P, _1080P};
 
 mod interface;
-mod utils;
-mod rendering;
 mod maths;
+mod pipelines;
 mod scene;
+mod utils;
 
 pub type FSize = f32;
 
 fn main() {
-    let m1 = m![c[1, 2, 3]; 2];
-    let m2 = m![r[1, 2, 3]; 2];
-
-    println!("{m1:?} {m2:?}");
-    println!("{m1}\n{m2}");
-
-    let render_config: RenderConfig = RenderConfig {
-        resolution: _240P,
-        screenshot_resolution: _1080P
+    let pipeline_config = PipelineConfig {
+        render_config: GlobalRenderConfig {
+            resolution: _240P,
+        },
+        render_pipeline: raytracing_pipeline(RaytracerConfig {}),
     };
 
-    let camera = Camera::new(&V3::new_v3(-5.0, 1.0, 0.0), (0.0, 0.0), 0.866);
+    let _screenshot_pipeline_config = PipelineConfig {
+        render_config: GlobalRenderConfig {
+            resolution: _1080P,
+        },
+        render_pipeline: raytracing_pipeline(RaytracerConfig {}),
+    };
 
-    Interface::start(render_config, camera, _720P);
+    let multi_frame_config = MultiFrameConfig::none();
+
+    let scene = SceneNode::new_empty()
+        .with_child(Camera::default().scene_node())
+        .with_child(
+            SceneObject::new(
+                Sphere { radius: 5 as FSize }.clone_box(),
+                LambertianMaterial {
+                    albedo_texture: SolidColorTexture { color: v![1, 0, 0] }.clone_box()
+                }.clone_box()
+                ,
+            )
+            .scene_node(),
+        );
+
+    Interface::new(pipeline_config, multi_frame_config, scene, _720P).start();
 }

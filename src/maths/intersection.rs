@@ -1,6 +1,6 @@
-use crate::FSize;
 use super::lines::{Line, SizedLine};
-use super::vectors::V3;
+use super::vector::V3;
+use crate::FSize;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
@@ -14,7 +14,7 @@ impl Intersection {
     pub fn new(line: &Line, scale: FSize, position: &V3) -> Self {
         Self {
             sized_line: SizedLine::from_line(line, scale),
-            position: position.clone(),
+            position: *position,
         }
     }
 
@@ -34,9 +34,7 @@ impl Intersection {
             }
         }
 
-        if current_intersect.is_none() {
-            return None;
-        }
+        current_intersect?;
         Some(&hits[current_intersect.unwrap()])
     }
 
@@ -52,9 +50,7 @@ impl Intersection {
             }
         }
 
-        if current_intersect.is_none() {
-            return None;
-        }
+        current_intersect?;
         Some(&hits[current_intersect.unwrap()])
     }
 }
