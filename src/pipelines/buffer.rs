@@ -41,6 +41,10 @@ impl Buffer {
         self.height
     }
 
+    pub fn resolution(&self) -> Resolution {
+        (self.width as u32, self.height as u32)
+    }
+
     #[inline]
     fn index(&self, x: usize, y: usize) -> usize {
         assert!(

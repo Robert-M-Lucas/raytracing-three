@@ -12,7 +12,7 @@ pub mod buffer;
 pub mod raytracer;
 pub mod render_config;
 
-mod shared;
+pub mod shared;
 
 fn render_image_internal(
     pipeline_config: PipelineConfig,

@@ -4,21 +4,21 @@ use crate::FSize;
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct Line {
-    pub point: V3,
-    pub vector: V3,
+    pub origin: V3,
+    pub direction: V3,
 }
 
 #[allow(dead_code)]
 impl Line {
-    pub fn new(point: &V3, vector: &V3) -> Self {
+    pub fn new(point: V3, vector: V3) -> Self {
         Self {
-            point: *point,
-            vector: *vector,
+            origin: point,
+            direction: vector,
         }
     }
 
     pub fn scale(&self, scale: FSize) -> V3 {
-        self.point + (self.vector * scale)
+        self.origin + (self.direction * scale)
     }
 }
 
@@ -31,7 +31,7 @@ pub struct SizedLine {
 
 #[allow(dead_code)]
 impl SizedLine {
-    pub fn new(point: &V3, vector: &V3, scale: FSize) -> Self {
+    pub fn new(point: V3, vector: V3, scale: FSize) -> Self {
         Self {
             line: Line::new(point, vector),
             scale,
@@ -43,6 +43,6 @@ impl SizedLine {
     }
 
     pub fn length(&self) -> FSize {
-        self.line.vector.magnitude() * self.scale
+        self.line.direction.magnitude() * self.scale
     }
 }

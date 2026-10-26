@@ -5,7 +5,6 @@ use crate::scene::{
 
 #[derive(Debug, Clone)]
 pub struct SceneObject {
-    pub name: Option<String>,
     pub geometry: Geometry,
     pub material: Material,
     /// Radiance emitted by the surface (lights are ordinary objects with emission).
@@ -17,17 +16,11 @@ pub struct SceneObject {
 impl SceneObject {
     pub fn new(geometry: Geometry, material: Material) -> Self {
         SceneObject {
-            name: None,
             geometry,
             material,
             emission: None,
             power: None,
         }
-    }
-
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
     }
 
     pub fn with_emission(mut self, emission: Texture) -> Self {

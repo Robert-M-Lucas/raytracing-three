@@ -1,4 +1,4 @@
-use crate::FSize;
+use crate::{FSize, maths::vector::V3};
 use std::{fmt, ops};
 
 #[macro_export]
@@ -44,17 +44,75 @@ impl<const R: usize, const C: usize> Default for M<R, C> {
     }
 }
 
+impl<const N: usize> M<N, N> {
+    pub fn inverse(&self) -> Option<Self> {
+        let mut a = self.data;
+        let mut inv = [[0.0; N]; N];
+        for i in 0..N {
+            inv[i][i] = 1.0;
+        }
+
+        for i in 0..N {
+            let mut max_row = i;
+            let mut max_val = a[i][i].abs();
+            for r in (i + 1)..N {
+                let val = a[r][i].abs();
+                if val > max_val {
+                    max_val = val;
+                    max_row = r;
+                }
+            }
+
+            if max_val == 0.0 {
+                return None;
+            }
+
+            if max_row != i {
+                a.swap(i, max_row);
+                inv.swap(i, max_row);
+            }
+
+            let pivot = a[i][i];
+            for j in 0..N {
+                a[i][j] /= pivot;
+                inv[i][j] /= pivot;
+            }
+
+            for r in 0..N {
+                if r != i {
+                    let factor = a[r][i];
+                    for j in 0..N {
+                        a[r][j] -= factor * a[i][j];
+                        inv[r][j] -= factor * inv[i][j];
+                    }
+                }
+            }
+        }
+
+        Some(Self { data: inv })
+    }
+}
+
 const DEFAULT_DISPLAY_PRECISION: usize = 3;
 
 impl<const R: usize, const C: usize> fmt::Debug for M<R, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "M<{R},{C}>")?;
+        if C > 1 {
+            write!(f, "M<{R},{C}>")?;
+            
+        }
+        else {
+            write!(f, "V<{R}>")?;
+        }
+        
         f.write_str("[")?;
         for (i, row) in self.data.iter().enumerate() {
             if i > 0 {
                 f.write_str(", ")?;
             }
-            f.write_str("[")?;
+            if C > 1 {
+                f.write_str("[")?;
+            }
             for (j, x) in row.iter().enumerate() {
                 if j > 0 {
                     f.write_str(", ")?;
@@ -64,7 +122,9 @@ impl<const R: usize, const C: usize> fmt::Debug for M<R, C> {
                     None => write!(f, "{}", x)?,
                 }
             }
+            if C > 1 {
             f.write_str("]")?;
+            }
         }
         f.write_str("]")
     }
@@ -304,17 +364,8 @@ pub type M4 = M<4, 4>;
 
 const CAMERA_PITCH_LIMIT: FSize = std::f64::consts::FRAC_PI_2 as FSize - 0.001;
 impl M4 {
-    pub fn identity() -> Self {
-        let mut data = [[0.0; 4]; 4];
-        data[0][0] = 1.0;
-        data[1][1] = 1.0;
-        data[2][2] = 1.0;
-        data[3][3] = 1.0;
-        Self { data }
-    }
-
     pub fn translation(x: FSize, y: FSize, z: FSize) -> Self {
-        let mut m = Self::identity();
+        let mut m = Self::IDENTITY;
         m.data[0][3] = x;
         m.data[1][3] = y;
         m.data[2][3] = z;
@@ -322,7 +373,7 @@ impl M4 {
     }
 
     pub fn scaling(x: FSize, y: FSize, z: FSize) -> Self {
-        let mut m = Self::identity();
+        let mut m = Self::IDENTITY;
         m.data[0][0] = x;
         m.data[1][1] = y;
         m.data[2][2] = z;
@@ -331,7 +382,7 @@ impl M4 {
 
     pub fn rotation_x(angle: FSize) -> Self {
         let (sin, cos) = angle.sin_cos();
-        let mut m = Self::identity();
+        let mut m = Self::IDENTITY;
         m.data[1][1] = cos;
         m.data[1][2] = -sin;
         m.data[2][1] = sin;
@@ -341,7 +392,7 @@ impl M4 {
 
     pub fn rotation_y(angle: FSize) -> Self {
         let (sin, cos) = angle.sin_cos();
-        let mut m = Self::identity();
+        let mut m = Self::IDENTITY;
         m.data[0][0] = cos;
         m.data[0][2] = sin;
         m.data[2][0] = -sin;
@@ -351,7 +402,7 @@ impl M4 {
 
     pub fn rotation_z(angle: FSize) -> Self {
         let (sin, cos) = angle.sin_cos();
-        let mut m = Self::identity();
+        let mut m = Self::IDENTITY;
         m.data[0][0] = cos;
         m.data[0][1] = -sin;
         m.data[1][0] = sin;
@@ -416,4 +467,17 @@ impl M4 {
     pub fn rotated_z(&self, angle: FSize) -> Self {
         self.cross(&Self::rotation_z(angle))
     }
+
+    pub fn transform_v3(&self, v3: &V3) -> V3 {
+        self.cross(&v3.to_v4()).div_w_v3()
+    }
+
+    pub const IDENTITY: M4 = M4 {
+        data: [
+            [1 as FSize, 0 as FSize, 0 as FSize, 0 as FSize],
+            [0 as FSize, 1 as FSize, 0 as FSize, 0 as FSize],
+            [0 as FSize, 0 as FSize, 1 as FSize, 0 as FSize],
+            [0 as FSize, 0 as FSize, 0 as FSize, 1 as FSize],
+        ],
+    };
 }

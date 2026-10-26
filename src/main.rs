@@ -1,10 +1,16 @@
 #![allow(dead_code)]
 
+use itertools::Itertools;
+
+use crate::coded_scenes::default_scene;
 use crate::interface::Interface;
 use crate::loaders::tungsten::load_tungsten_scene;
+use crate::maths::lines::Line;
+use crate::maths::vector::V3;
 use crate::pipelines::raytracer::{RaytracerConfig, raytracing_pipeline};
 use crate::pipelines::render_config::{GlobalRenderConfig, MultiFrameConfig, PipelineConfig};
-use crate::utils::{_8K_SQ, _720P_SQ};
+use crate::pipelines::shared::bvh::BVH;
+use crate::utils::{_8K_SQ, _144P, _720P_SQ};
 
 mod coded_scenes;
 mod interface;
@@ -19,7 +25,7 @@ pub type FSize = f32;
 fn main() {
     let pipeline_config = PipelineConfig {
         render_config: GlobalRenderConfig {
-            resolution: _720P_SQ,
+            resolution: _144P,
         },
         render_pipeline: raytracing_pipeline(RaytracerConfig {}),
     };
@@ -31,8 +37,15 @@ fn main() {
 
     let multi_frame_config = MultiFrameConfig::none();
 
-    let load_path = "static/scenes/cornell-box";
-    let scene = load_tungsten_scene(load_path).unwrap();
+    // let load_path = "static/scenes/cornell-box";
+    // let scene = load_tungsten_scene(load_path).unwrap();
+    let load_path = "hard-coded";
+    let scene = default_scene();
+
+    // let bvh = BVH::from_scene(scene);
+    // println!("{:#?}", bvh.intersect(Line::new(V3::ZERO, V3::FORWARD), 0.001 as FSize, FSize::INFINITY).collect_vec());
+
+    // println!("{:#?}", bvh);
 
     Interface::new(
         load_path.to_string(),

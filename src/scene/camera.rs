@@ -2,7 +2,7 @@ use crate::{FSize, scene::scene_node::SceneNode};
 
 #[derive(Clone, Debug)]
 pub struct Camera {
-    pub fov: FSize, // radians
+    pub fov: FSize, // Degrees
 }
 
 impl Camera {

@@ -14,11 +14,11 @@ use crate::{
 
 pub fn default_scene() -> SceneNode {
     SceneNode::new_empty()
-        .with_child(Camera::new(100 as FSize).scene_node())
+        .with_child(Camera::new(90 as FSize).scene_node())
         // .with_child(Camera::default().scene_node())
         .with_child(
             SceneObject::new(
-                Geometry::Sphere(Sphere { radius: 1 as FSize }),
+                Geometry::Sphere(Sphere { radius: 3 as FSize }),
                 Material::lambert(Texture::Solid(v![1.0, 0.0, 0.0])),
             )
             .scene_node()
@@ -26,7 +26,7 @@ pub fn default_scene() -> SceneNode {
         )
         .with_child(
             SceneObject::new(
-                Geometry::Sphere(Sphere { radius: 1 as FSize }),
+                Geometry::Sphere(Sphere { radius: 3 as FSize }),
                 Material::lambert(Texture::Solid(v![0.0, 1.0, 0.0])),
             )
             .scene_node()
@@ -34,7 +34,7 @@ pub fn default_scene() -> SceneNode {
         )
         .with_child(
             SceneObject::new(
-                Geometry::Sphere(Sphere { radius: 1 as FSize }),
+                Geometry::Sphere(Sphere { radius: 3 as FSize }),
                 Material::lambert(Texture::Solid(v![0.0, 0.0, 1.0])),
             )
             .scene_node()
@@ -42,7 +42,7 @@ pub fn default_scene() -> SceneNode {
         )
         .with_child(
             SceneObject::new(
-                Geometry::Sphere(Sphere { radius: 1 as FSize }),
+                Geometry::Sphere(Sphere { radius: 3 as FSize }),
                 Material::lambert(Texture::Solid(v![1.0, 1.0, 0.0])),
             )
             .scene_node()
@@ -50,7 +50,7 @@ pub fn default_scene() -> SceneNode {
         )
         .with_child(
             SceneObject::new(
-                Geometry::Sphere(Sphere { radius: 1 as FSize }),
+                Geometry::Sphere(Sphere { radius: 3 as FSize }),
                 Material::lambert(Texture::Solid(v![0.0, 1.0, 1.0])),
             )
             .scene_node()
@@ -58,7 +58,7 @@ pub fn default_scene() -> SceneNode {
         )
         .with_child(
             SceneObject::new(
-                Geometry::Sphere(Sphere { radius: 1 as FSize }),
+                Geometry::Sphere(Sphere { radius: 3 as FSize }),
                 Material::lambert(Texture::Solid(v![1.0, 0.0, 1.0])),
             )
             .scene_node()

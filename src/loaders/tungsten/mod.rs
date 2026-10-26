@@ -205,7 +205,6 @@ fn parse_primitive(
     };
 
     let mut object = SceneObject::new(geometry, material);
-    object.name = name;
     if let Some(e) = p.get("emission") {
         object.emission = Some(assets.texture(e, ColourSpace::Srgb, &ctx)?);
     }
@@ -214,12 +213,14 @@ fn parse_primitive(
     }
 
     let transform = parse_transform(p.get("transform"), &ctx)?;
-    Ok(Some(object.scene_node().with_transform(transform)))
+    let mut scene_node = object.scene_node();
+    scene_node.name = name;
+    Ok(Some(scene_node.with_transform(transform)))
 }
 
 fn parse_transform(t: Option<&Value>, ctx: &str) -> Result<M4, LoadError> {
     let Some(t) = t else {
-        return Ok(M4::identity());
+        return Ok(M4::IDENTITY);
     };
 
     if let Some(arr) = t.as_array() {

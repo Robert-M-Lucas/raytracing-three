@@ -13,6 +13,7 @@ enum SceneNodeType {
 
 #[derive(Clone, Debug)]
 pub struct SceneNode {
+    pub name: Option<String>,
     pub transform: M4,
     node_type: SceneNodeType,
     pub children: Vec<SceneNode>,
@@ -21,7 +22,8 @@ pub struct SceneNode {
 impl SceneNode {
     pub fn new_empty() -> Self {
         Self {
-            transform: M4::identity(),
+            name: None,
+            transform: M4::IDENTITY,
             node_type: SceneNodeType::Empty,
             children: Vec::new(),
         }
@@ -29,7 +31,8 @@ impl SceneNode {
 
     pub fn new_object(scene_object: SceneObject) -> Self {
         Self {
-            transform: M4::identity(),
+            name: None,
+            transform: M4::IDENTITY,
             node_type: SceneNodeType::Object(scene_object),
             children: Vec::new(),
         }
@@ -37,10 +40,16 @@ impl SceneNode {
 
     pub fn new_camera(camera: Camera) -> Self {
         Self {
-            transform: M4::identity(),
+            name: None,
+            transform: M4::IDENTITY,
             node_type: SceneNodeType::Camera(camera),
             children: Vec::new(),
         }
+    }
+
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     pub fn with_transform(mut self, transform: M4) -> Self {

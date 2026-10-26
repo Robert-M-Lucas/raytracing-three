@@ -9,7 +9,7 @@ pub struct ImageData {
     pub source: PathBuf,
     pub width: u32,
     pub height: u32,
-    /// Row-major, top row first, linear RGB (or raw values for linear-space maps).
+    /// Row-major, top row first, linear RGB
     pub pixels: Vec<V3>,
 }
 

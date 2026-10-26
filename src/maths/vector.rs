@@ -138,6 +138,18 @@ impl V3 {
         ) + about
     }
 
+    pub fn v3_cross(&self, rhs: &V3) -> V3 {
+        V3::new_v3(
+            self.y() * rhs.z() - self.z() * rhs.y(),
+            self.z() * rhs.x() - self.x() * rhs.z(),
+            self.x() * rhs.y() - self.y() * rhs.x(),
+        )
+    }
+
+    pub fn to_v4(&self) -> V4 {
+        V4::new_v4(self.x(), self.y(), self.z(), 1 as FSize)
+    }
+
     pub const FORWARD: V3 = V3 {
         data: [[1.0], [0.0], [0.0]],
     };
@@ -202,5 +214,14 @@ impl V4 {
 
     pub fn w_mut(&mut self) -> &mut FSize {
         &mut self.data[3][0]
+    }
+
+    pub fn div_w_v3(&self) -> V3 {
+        let w = self.w();
+        if w != 0.0 {
+            V3::new_v3(self.x() / w, self.y() / w, self.z() / w)
+        } else {
+            V3::new_v3(self.x(), self.y(), self.z())
+        }
     }
 }
