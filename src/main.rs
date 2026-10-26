@@ -5,7 +5,7 @@ use crate::interface::Interface;
 use crate::loaders::tungsten::load_tungsten_scene;
 use crate::pipelines::raytracer::{RaytracerConfig, raytracing_pipeline};
 use crate::pipelines::render_config::{GlobalRenderConfig, MultiFrameConfig, PipelineConfig};
-use crate::utils::{_8K_SQ, _240P, _720P_SQ};
+use crate::utils::{_8K_SQ, _16K, _16K_SQ, _240P_SQ, _720P_SQ};
 
 mod coded_scenes;
 mod interface;
@@ -26,7 +26,7 @@ pub const CUSTOM_UNWRAP_BEHAVIOUR: CustomUnwrapBehaviour = CustomUnwrapBehaviour
 fn main() {
     let pipeline_config = PipelineConfig {
         render_config: GlobalRenderConfig {
-            resolution: _240P,
+            resolution: _240P_SQ,
             multithread: true,
         },
         render_pipeline: raytracing_pipeline(RaytracerConfig {}),
@@ -34,7 +34,7 @@ fn main() {
 
     let screenshot_pipeline_config = PipelineConfig {
         render_config: GlobalRenderConfig {
-            resolution: _8K_SQ,
+            resolution: _16K_SQ,
             multithread: true,
         },
         render_pipeline: raytracing_pipeline(RaytracerConfig {}),

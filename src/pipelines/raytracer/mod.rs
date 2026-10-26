@@ -113,7 +113,7 @@ pub fn raytrace_pixel(
     let u = (2.0 * (x as FSize + 0.5) / resolution.0 as FSize - 1.0) * scale * aspect;
     let v = (1.0 - 2.0 * (y as FSize + 0.5) / resolution.1 as FSize) * scale;
 
-    let dir_cam = V3::new_v3(u, v, 1.0).normalised();
+    let dir_cam = V3::new_v3(-u, v, 1.0).normalised();
 
     // Transform ray origin and direction by camera transform
     let cam_pos = camera_transform.position();

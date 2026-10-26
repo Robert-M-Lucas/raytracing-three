@@ -168,7 +168,7 @@ impl Interface {
                     ..
                 } => return true,
                 Event::MouseMotion { xrel, yrel, .. } => {
-                    look_x += xrel as FSize;
+                    look_x -= xrel as FSize;
                     look_y += yrel as FSize;
                 }
                 Event::MouseWheel {
