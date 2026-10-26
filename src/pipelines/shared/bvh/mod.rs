@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use crate::{
     FSize,
     maths::{lines::Line, matrix::M4, vector::V3},
-    pipelines::shared::bvh::{aabb::AABB, hit_iterator::BVHHitIterator},
+    pipelines::shared::bvh::{aabb::Aabb, hit_iterator::BvhHitIterator},
     scene::{
         geometry::{Geometry, Sphere},
         scene_node::SceneNode,
@@ -17,7 +17,7 @@ pub mod hit_iterator;
 const BVH_NODE_MIN_PRIM: usize = 4;
 
 #[derive(Clone, Copy, Debug)]
-struct BVHSceneObjectRef {
+struct BvhSceneObjectRef {
     object_index: u32,    // which scene object
     subobject_index: u32, // i.e. triangle index for a mesh, 0 for others
 }
@@ -25,31 +25,31 @@ struct BVHSceneObjectRef {
 #[derive(Clone, Debug)]
 enum BVHNode {
     Internal {
-        aabb: AABB,
+        aabb: Aabb,
         left: usize,
         right: usize,
     },
     Leaf {
-        aabb: AABB,
-        refs: Vec<BVHSceneObjectRef>,
+        aabb: Aabb,
+        refs: Vec<BvhSceneObjectRef>,
     },
 }
 
-struct BVHPrimitiveInfo {
+struct BvhPrimitiveInfo {
     primitive_index: usize,
-    object_ref: BVHSceneObjectRef,
-    aabb: AABB,
+    object_ref: BvhSceneObjectRef,
+    aabb: Aabb,
     centroid: V3,
 }
 
 #[derive(Debug)]
-pub struct BVH {
+pub struct Bvh {
     scene_objects: Vec<(M4, SceneObject)>,
     nodes: Vec<BVHNode>, // root is last!
 }
 
-impl BVH {
-    pub fn from_scene(scene: SceneNode) -> BVH {
+impl Bvh {
+    pub fn from_scene(scene: SceneNode) -> Bvh {
         let mut scene_objects = Vec::new();
         Self::collect_scene_nodes(M4::IDENTITY, scene, &mut scene_objects);
 
@@ -59,14 +59,14 @@ impl BVH {
             let obj_idx = object_index as u32;
             match &object.geometry {
                 Geometry::Sphere(Sphere { radius }) => {
-                    let local_aabb = AABB::new(
+                    let local_aabb = Aabb::new(
                         V3::new_v3(-*radius, -*radius, -*radius),
                         V3::new_v3(*radius, *radius, *radius),
                     );
                     let world_aabb = local_aabb.transform(transform);
-                    primitives.push(BVHPrimitiveInfo {
+                    primitives.push(BvhPrimitiveInfo {
                         primitive_index: primitives.len(),
-                        object_ref: BVHSceneObjectRef {
+                        object_ref: BvhSceneObjectRef {
                             object_index: obj_idx,
                             subobject_index: 0,
                         },
@@ -76,11 +76,11 @@ impl BVH {
                 }
                 Geometry::Quad => {
                     let local_aabb =
-                        AABB::new(V3::new_v3(-0.5, 0.0, -0.5), V3::new_v3(0.5, 0.0, 0.5));
+                        Aabb::new(V3::new_v3(-0.5, 0.0, -0.5), V3::new_v3(0.5, 0.0, 0.5));
                     let world_aabb = local_aabb.transform(transform);
-                    primitives.push(BVHPrimitiveInfo {
+                    primitives.push(BvhPrimitiveInfo {
                         primitive_index: primitives.len(),
-                        object_ref: BVHSceneObjectRef {
+                        object_ref: BvhSceneObjectRef {
                             object_index: obj_idx,
                             subobject_index: 0,
                         },
@@ -90,11 +90,11 @@ impl BVH {
                 }
                 Geometry::Disk => {
                     let local_aabb =
-                        AABB::new(V3::new_v3(-1.0, 0.0, -1.0), V3::new_v3(1.0, 0.0, 1.0));
+                        Aabb::new(V3::new_v3(-1.0, 0.0, -1.0), V3::new_v3(1.0, 0.0, 1.0));
                     let world_aabb = local_aabb.transform(transform);
-                    primitives.push(BVHPrimitiveInfo {
+                    primitives.push(BvhPrimitiveInfo {
                         primitive_index: primitives.len(),
-                        object_ref: BVHSceneObjectRef {
+                        object_ref: BvhSceneObjectRef {
                             object_index: obj_idx,
                             subobject_index: 0,
                         },
@@ -104,11 +104,11 @@ impl BVH {
                 }
                 Geometry::Cube => {
                     let local_aabb =
-                        AABB::new(V3::new_v3(-0.5, -0.5, -0.5), V3::new_v3(0.5, 0.5, 0.5));
+                        Aabb::new(V3::new_v3(-0.5, -0.5, -0.5), V3::new_v3(0.5, 0.5, 0.5));
                     let world_aabb = local_aabb.transform(transform);
-                    primitives.push(BVHPrimitiveInfo {
+                    primitives.push(BvhPrimitiveInfo {
                         primitive_index: primitives.len(),
-                        object_ref: BVHSceneObjectRef {
+                        object_ref: BvhSceneObjectRef {
                             object_index: obj_idx,
                             subobject_index: 0,
                         },
@@ -124,9 +124,9 @@ impl BVH {
                         let p2 = mesh.data.vertices[i2].position;
 
                         // Transform triangle vertices to world space
-                        let tp0 = transform.transform_v3(&p0);
-                        let tp1 = transform.transform_v3(&p1);
-                        let tp2 = transform.transform_v3(&p2);
+                        let tp0 = transform.transform_v3_w0(&p0);
+                        let tp1 = transform.transform_v3_w0(&p1);
+                        let tp2 = transform.transform_v3_w0(&p2);
 
                         let min = V3::new_v3(
                             tp0.x().min(tp1.x()).min(tp2.x()),
@@ -138,11 +138,11 @@ impl BVH {
                             tp0.y().max(tp1.y()).max(tp2.y()),
                             tp0.z().max(tp1.z()).max(tp2.z()),
                         );
-                        let world_aabb = AABB::new(min, max);
+                        let world_aabb = Aabb::new(min, max);
 
-                        primitives.push(BVHPrimitiveInfo {
+                        primitives.push(BvhPrimitiveInfo {
                             primitive_index: primitives.len(),
-                            object_ref: BVHSceneObjectRef {
+                            object_ref: BvhSceneObjectRef {
                                 object_index: obj_idx,
                                 subobject_index: sub_idx as u32,
                             },
@@ -158,14 +158,14 @@ impl BVH {
         let primitives_len = primitives.len();
         Self::build_recursive(&mut primitives, 0, primitives_len, &mut nodes);
 
-        BVH {
+        Bvh {
             scene_objects,
             nodes,
         }
     }
 
     fn build_recursive(
-        primitives: &mut [BVHPrimitiveInfo],
+        primitives: &mut [BvhPrimitiveInfo],
         start: usize,
         end: usize,
         nodes: &mut Vec<BVHNode>,
@@ -177,7 +177,7 @@ impl BVH {
         }
 
         if n_primitives <= BVH_NODE_MIN_PRIM {
-            let refs: Vec<BVHSceneObjectRef> = primitives[start..end]
+            let refs: Vec<BvhSceneObjectRef> = primitives[start..end]
                 .iter()
                 .map(|p| p.object_ref)
                 .collect();
@@ -187,7 +187,7 @@ impl BVH {
         }
 
         // Compute centroid bounds for SAH
-        let mut centroid_bounds = AABB::new(primitives[start].centroid, primitives[start].centroid);
+        let mut centroid_bounds = Aabb::new(primitives[start].centroid, primitives[start].centroid);
         for i in (start + 1)..end {
             centroid_bounds.min = V3::new_v3(
                 centroid_bounds.min.x().min(primitives[i].centroid.x()),
@@ -211,7 +211,7 @@ impl BVH {
         };
 
         if centroid_bounds.min.data[axis][0] == centroid_bounds.max.data[axis][0] {
-            let refs: Vec<BVHSceneObjectRef> = primitives[start..end]
+            let refs: Vec<BvhSceneObjectRef> = primitives[start..end]
                 .iter()
                 .map(|p| p.object_ref)
                 .collect();
@@ -224,12 +224,12 @@ impl BVH {
         const NUM_BINS: usize = 16;
         #[derive(Clone, Copy)]
         struct Bin {
-            bounds: AABB,
+            bounds: Aabb,
             primitive_count: usize,
         }
 
         let mut bins = [Bin {
-            bounds: AABB::new(V3::new_v3(0.0, 0.0, 0.0), V3::new_v3(0.0, 0.0, 0.0)),
+            bounds: Aabb::new(V3::new_v3(0.0, 0.0, 0.0), V3::new_v3(0.0, 0.0, 0.0)),
             primitive_count: 0,
         }; NUM_BINS];
         let mut bin_initialized = [false; NUM_BINS];
@@ -260,7 +260,7 @@ impl BVH {
 
         for i in 0..(NUM_BINS - 1) {
             let mut left_count = 0;
-            let mut left_bounds = AABB::new(V3::new_v3(0.0, 0.0, 0.0), V3::new_v3(0.0, 0.0, 0.0));
+            let mut left_bounds = Aabb::new(V3::new_v3(0.0, 0.0, 0.0), V3::new_v3(0.0, 0.0, 0.0));
             let mut left_init = false;
 
             for b in bins.iter().take(i + 1) {
@@ -276,7 +276,7 @@ impl BVH {
             }
 
             let mut right_count = 0;
-            let mut right_bounds = AABB::new(V3::new_v3(0.0, 0.0, 0.0), V3::new_v3(0.0, 0.0, 0.0));
+            let mut right_bounds = Aabb::new(V3::new_v3(0.0, 0.0, 0.0), V3::new_v3(0.0, 0.0, 0.0));
             let mut right_init = false;
 
             for b in bins.iter().skip(i + 1).take(NUM_BINS - (i + 1)) {
@@ -366,7 +366,7 @@ impl BVH {
         }
     }
 
-    pub fn intersect<'a>(&'a self, ray: Line, t_min: FSize, t_max: FSize) -> BVHHitIterator<'a> {
-        BVHHitIterator::new(self, ray, t_min, t_max)
+    pub fn intersect<'a>(&'a self, ray: Line, t_min: FSize, t_max: FSize) -> BvhHitIterator<'a> {
+        BvhHitIterator::new(self, ray, t_min, t_max)
     }
 }

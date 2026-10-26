@@ -1,21 +1,21 @@
 use crate::{
     FSize,
     maths::{lines::Line, matrix::M4},
-    pipelines::shared::bvh::{BVH, BVHNode, BVHSceneObjectRef},
+    pipelines::shared::bvh::{BVHNode, Bvh, BvhSceneObjectRef},
     scene::scene_object::SceneObject,
 };
 
-pub struct BVHHitIterator<'a> {
-    bvh: &'a BVH,
+pub struct BvhHitIterator<'a> {
+    bvh: &'a Bvh,
     ray: Line,
     stack: Vec<usize>,
-    current_leaf_refs: std::slice::Iter<'a, BVHSceneObjectRef>,
+    current_leaf_refs: std::slice::Iter<'a, BvhSceneObjectRef>,
     t_min: FSize,
     t_max: FSize,
 }
 
-impl<'a> BVHHitIterator<'a> {
-    pub fn new(bvh: &'a BVH, ray: Line, t_min: FSize, t_max: FSize) -> Self {
+impl<'a> BvhHitIterator<'a> {
+    pub fn new(bvh: &'a Bvh, ray: Line, t_min: FSize, t_max: FSize) -> Self {
         let mut stack = Vec::new();
         if !bvh.nodes.is_empty() {
             stack.push(bvh.nodes.len() - 1); // Push root node index
@@ -31,7 +31,7 @@ impl<'a> BVHHitIterator<'a> {
     }
 }
 
-impl<'a> Iterator for BVHHitIterator<'a> {
+impl<'a> Iterator for BvhHitIterator<'a> {
     type Item = (&'a (M4, SceneObject), u32);
 
     fn next(&mut self) -> Option<Self::Item> {

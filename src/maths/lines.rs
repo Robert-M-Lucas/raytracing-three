@@ -10,11 +10,8 @@ pub struct Line {
 
 #[allow(dead_code)]
 impl Line {
-    pub fn new(point: V3, vector: V3) -> Self {
-        Self {
-            origin: point,
-            direction: vector,
-        }
+    pub fn new(origin: V3, direction: V3) -> Self {
+        Self { origin, direction }
     }
 
     pub fn scale(&self, scale: FSize) -> V3 {
@@ -31,9 +28,9 @@ pub struct SizedLine {
 
 #[allow(dead_code)]
 impl SizedLine {
-    pub fn new(point: V3, vector: V3, scale: FSize) -> Self {
+    pub fn new(origin: V3, direction: V3, scale: FSize) -> Self {
         Self {
-            line: Line::new(point, vector),
+            line: Line::new(origin, direction),
             scale,
         }
     }

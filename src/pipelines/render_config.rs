@@ -46,6 +46,7 @@ impl Debug for RenderPipeline {
 #[derive(Debug, Clone)]
 pub struct GlobalRenderConfig {
     pub resolution: Resolution,
+    pub multithread: bool,
 }
 
 #[derive(Clone)]

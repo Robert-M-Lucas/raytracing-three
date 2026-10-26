@@ -168,7 +168,7 @@ impl Interface {
                     ..
                 } => return true,
                 Event::MouseMotion { xrel, yrel, .. } => {
-                    look_x -= xrel as FSize;
+                    look_x += xrel as FSize;
                     look_y += yrel as FSize;
                 }
                 Event::MouseWheel {
@@ -203,11 +203,8 @@ impl Interface {
             + slow * axis(&[Scancode::Left], &[Scancode::Right]);
         let forward = fast * axis(&[Scancode::S], &[Scancode::W])
             + slow * axis(&[Scancode::Down], &[Scancode::Up]);
-        let up =
-            fast * axis(
-                &[Scancode::Space],
-                &[Scancode::C, Scancode::LCtrl, Scancode::LShift],
-            ) + slow * axis(&[Scancode::E], &[Scancode::Q]);
+        let up = fast * axis(&[Scancode::Space], &[Scancode::C, Scancode::LShift])
+            + slow * axis(&[Scancode::E], &[Scancode::Q]);
 
         if let Some(camera_node) = self.scene.find_first_camera_mut() {
             camera_node
@@ -241,37 +238,7 @@ impl Interface {
                     println!("Screenshot complete");
                     *render_progress_clone.lock().unwrap() = None;
 
-                    let now = chrono::offset::Local::now();
-                    let file_name = format!(
-                        "Render {}-{}-{} {}-{}-{} {}x{}",
-                        format!("{:0>2}", now.year()),
-                        format!("{:0>2}", now.month()),
-                        format!("{:0>2}", now.day()),
-                        format!("{:0>2}", now.hour()),
-                        format!("{:0>2}", now.minute()),
-                        format!("{:0>2}", now.second()),
-                        buffer.width(),
-                        buffer.height()
-                    );
-                    let rgba = buffer.to_rgba_vec();
-                    let img = DynamicImage::ImageRgba8(
-                        ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
-                            buffer.width() as u32,
-                            buffer.height() as u32,
-                            rgba,
-                        )
-                        .unwrap(),
-                    );
-
-                    let mut is_err = fs::create_dir_all("renders").is_err();
-                    if !is_err {
-                        is_err = img.save(format!("renders/{}.png", file_name)).is_err();
-                    }
-                    if is_err {
-                        println!("Saving file to 'renders/{}.png' failed!", file_name);
-                    } else {
-                        println!("Saved file to 'renders/{}.png'", file_name);
-                    }
+                    save_buffer_png(&buffer);
                 }),
             );
 
@@ -279,5 +246,39 @@ impl Interface {
         }
 
         false
+    }
+}
+
+pub fn save_buffer_png(buffer: &Buffer) {
+    let now = chrono::offset::Local::now();
+    let file_name = format!(
+        "Render {:0>2}-{:0>2}-{:0>2} {:0>2}-{:0>2}-{:0>2} {}x{}",
+        now.year(),
+        now.month(),
+        now.day(),
+        now.hour(),
+        now.minute(),
+        now.second(),
+        buffer.width(),
+        buffer.height()
+    );
+    let rgba = buffer.to_rgba_vec();
+    let img = DynamicImage::ImageRgba8(
+        ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
+            buffer.width() as u32,
+            buffer.height() as u32,
+            rgba,
+        )
+        .unwrap(),
+    );
+
+    let mut is_err = fs::create_dir_all("renders").is_err();
+    if !is_err {
+        is_err = img.save(format!("renders/{}.png", file_name)).is_err();
+    }
+    if is_err {
+        println!("Saving file to 'renders/{}.png' failed!", file_name);
+    } else {
+        println!("Saved file to 'renders/{}.png'", file_name);
     }
 }

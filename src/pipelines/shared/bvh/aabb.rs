@@ -8,14 +8,14 @@ use crate::{
 };
 
 #[derive(Clone, Copy, Debug)]
-pub struct AABB {
+pub struct Aabb {
     pub min: V3,
     pub max: V3,
 }
 
-impl AABB {
-    pub fn new(min: V3, max: V3) -> AABB {
-        AABB { min, max }
+impl Aabb {
+    pub fn new(min: V3, max: V3) -> Aabb {
+        Aabb { min, max }
     }
 
     pub fn centre(&self) -> V3 {
@@ -27,8 +27,8 @@ impl AABB {
         2.0 * (d.x() * d.y() + d.y() * d.z() + d.z() * d.x())
     }
 
-    pub fn union(&self, other: &AABB) -> AABB {
-        AABB {
+    pub fn union(&self, other: &Aabb) -> Aabb {
+        Aabb {
             min: V3::new_v3(
                 self.min.x().min(other.min.x()),
                 self.min.y().min(other.min.y()),
@@ -42,7 +42,7 @@ impl AABB {
         }
     }
 
-    pub fn transform(&self, m: &M4) -> AABB {
+    pub fn transform(&self, m: &M4) -> Aabb {
         let corners = [
             V3::new_v3(self.min.x(), self.min.y(), self.min.z()),
             V3::new_v3(self.max.x(), self.min.y(), self.min.z()),
@@ -79,7 +79,7 @@ impl AABB {
                 max.z().max(pt.z()),
             );
         }
-        AABB::new(min, max)
+        Aabb::new(min, max)
     }
 
     pub fn intersect(&self, ray: &Line, mut t_min: FSize, mut t_max: FSize) -> bool {
@@ -89,21 +89,30 @@ impl AABB {
             let min = self.min.data[i][0];
             let max = self.max.data[i][0];
 
+            // Parallel to this slab - must already be inside it
+            if dir.abs() < 1e-8 {
+                if origin < min || origin > max {
+                    return false;
+                }
+                continue;
+            }
+
             let inv_d = 1.0 / dir;
             let mut t0 = (min - origin) * inv_d;
             let mut t1 = (max - origin) * inv_d;
 
-            if inv_d < 0.0 {
+            if t0 > t1 {
                 std::mem::swap(&mut t0, &mut t1);
             }
 
-            t_min = t0.max(t_min);
-            t_max = t1.min(t_max);
+            t_min = t_min.max(t0);
+            t_max = t_max.min(t1);
 
-            if t_max <= t_min {
+            if t_max < t_min {
                 return false;
             }
         }
+
         true
     }
 }

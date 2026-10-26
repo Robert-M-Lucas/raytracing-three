@@ -1,16 +1,11 @@
 #![allow(dead_code)]
+#![allow(clippy::needless_range_loop)]
 
-use itertools::Itertools;
-
-use crate::coded_scenes::default_scene;
 use crate::interface::Interface;
 use crate::loaders::tungsten::load_tungsten_scene;
-use crate::maths::lines::Line;
-use crate::maths::vector::V3;
 use crate::pipelines::raytracer::{RaytracerConfig, raytracing_pipeline};
 use crate::pipelines::render_config::{GlobalRenderConfig, MultiFrameConfig, PipelineConfig};
-use crate::pipelines::shared::bvh::BVH;
-use crate::utils::{_8K_SQ, _144P, _720P_SQ};
+use crate::utils::{_8K_SQ, _240P, _720P_SQ};
 
 mod coded_scenes;
 mod interface;
@@ -21,29 +16,51 @@ mod scene;
 mod utils;
 
 pub type FSize = f32;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CustomUnwrapBehaviour {
+    Panic,
+    Default,
+}
+pub const CUSTOM_UNWRAP_BEHAVIOUR: CustomUnwrapBehaviour = CustomUnwrapBehaviour::Panic;
 
 fn main() {
     let pipeline_config = PipelineConfig {
         render_config: GlobalRenderConfig {
-            resolution: _144P,
+            resolution: _240P,
+            multithread: true,
         },
         render_pipeline: raytracing_pipeline(RaytracerConfig {}),
     };
 
     let screenshot_pipeline_config = PipelineConfig {
-        render_config: GlobalRenderConfig { resolution: _8K_SQ },
+        render_config: GlobalRenderConfig {
+            resolution: _8K_SQ,
+            multithread: true,
+        },
         render_pipeline: raytracing_pipeline(RaytracerConfig {}),
     };
 
     let multi_frame_config = MultiFrameConfig::none();
 
-    // let load_path = "static/scenes/cornell-box";
-    // let scene = load_tungsten_scene(load_path).unwrap();
-    let load_path = "hard-coded";
-    let scene = default_scene();
+    let load_path = "static/scenes/kitchen";
+    let scene = load_tungsten_scene(load_path).unwrap();
+    // let load_path = "hard-coded";
+    // let scene = default_scene();
 
     // let bvh = BVH::from_scene(scene);
-    // println!("{:#?}", bvh.intersect(Line::new(V3::ZERO, V3::FORWARD), 0.001 as FSize, FSize::INFINITY).collect_vec());
+    // let ray = Line::new(V3::ZERO, V3::FORWARD);
+    // for ((transform, object), subindex) in bvh.intersect(ray, 0.001 as FSize, FSize::INFINITY).collect_vec() {
+    //     println!("{} {:?}", transform, object);
+
+    //     let x = match &object.geometry {
+    //         scene::geometry::Geometry::Sphere(sphere) => intersect_sphere(&ray, sphere, transform),
+    //         scene::geometry::Geometry::Quad => todo!(),
+    //         scene::geometry::Geometry::Disk => todo!(),
+    //         scene::geometry::Geometry::Cube => todo!(),
+    //         scene::geometry::Geometry::Mesh(mesh) => todo!(),
+    //     };
+    //     println!("Hit: {:?}", x);
+    // };
 
     // println!("{:#?}", bvh);
 
@@ -56,4 +73,28 @@ fn main() {
         _720P_SQ,
     )
     .start();
+}
+
+#[cfg(test)]
+mod tests {
+    use std::hint::black_box;
+
+    use crate::{pipelines::render_image, utils::_4K_SQ};
+
+    use super::*;
+    #[test]
+    fn single() {
+        let perf_pipeline_config = PipelineConfig {
+            render_config: GlobalRenderConfig {
+                resolution: _4K_SQ,
+                multithread: false,
+            },
+            render_pipeline: raytracing_pipeline(RaytracerConfig {}),
+        };
+        let multi_frame_config = MultiFrameConfig::none();
+        let load_path = "static/scenes/kitchen";
+        let scene = load_tungsten_scene(load_path).unwrap();
+        let buffer = render_image(perf_pipeline_config, scene, multi_frame_config);
+        black_box(buffer);
+    }
 }

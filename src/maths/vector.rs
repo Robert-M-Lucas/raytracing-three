@@ -146,7 +146,11 @@ impl V3 {
         )
     }
 
-    pub fn to_v4(&self) -> V4 {
+    pub fn v4_w0(&self) -> V4 {
+        V4::new_v4(self.x(), self.y(), self.z(), 0 as FSize)
+    }
+
+    pub fn v4_w1(&self) -> V4 {
         V4::new_v4(self.x(), self.y(), self.z(), 1 as FSize)
     }
 
@@ -223,5 +227,9 @@ impl V4 {
         } else {
             V3::new_v3(self.x(), self.y(), self.z())
         }
+    }
+
+    pub fn v3(&self) -> V3 {
+        V3::new_v3(self.x(), self.y(), self.z())
     }
 }

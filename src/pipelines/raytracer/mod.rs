@@ -1,16 +1,18 @@
+use std::sync::{Arc, Mutex};
+
 use rayon::prelude::*;
 
 use crate::{
     FSize,
     maths::{
         lines::Line,
-        matrix::M4,
+        matrix::{M4, UnwrapMatrix},
         vector::{V3, V4},
     },
     pipelines::{
         buffer::Buffer,
         render_config::{GlobalRenderConfig, RenderPipeline},
-        shared::bvh::BVH,
+        shared::bvh::Bvh,
     },
     scene::{
         camera::Camera,
@@ -23,45 +25,82 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct RaytracerConfig {}
 
+#[derive(Clone)]
+struct RaytracerCache {
+    bvh: Arc<Mutex<Option<Bvh>>>,
+}
+
+impl RaytracerCache {
+    pub fn new() -> RaytracerCache {
+        RaytracerCache {
+            bvh: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
 pub fn raytracing_pipeline(config: RaytracerConfig) -> RenderPipeline {
+    let cache = RaytracerCache::new();
     Box::new(move |grc, scene, buffer| {
-        raytrace(grc, config, scene, buffer);
+        raytrace(grc, config, scene, buffer, &cache);
     })
 }
 
-fn raytrace(_grc: GlobalRenderConfig, _config: RaytracerConfig, scene: SceneNode, buffer: Buffer) {
+fn raytrace(
+    grc: GlobalRenderConfig,
+    _config: RaytracerConfig,
+    scene: SceneNode,
+    buffer: Buffer,
+    cache: &RaytracerCache,
+) {
     let camera = scene
         .find_first_camera()
         .expect("Scene must contain a camera");
     let (camera_transform, camera) = (camera.transform, camera.camera().unwrap().clone());
 
-    let bvh = BVH::from_scene(scene);
+    let mut cached = cache.bvh.lock().unwrap();
+    if cached.is_none() {
+        *cached = Some(Bvh::from_scene(scene))
+    }
+    let bvh = cached.as_ref().unwrap();
 
     // 16 * CPUs groups
-    let pixel_group = (buffer.width() * buffer.height() * 16) / num_cpus::get();
+    let pixel_group = (((buffer.width() * buffer.height()) / 16) / num_cpus::get()).max(1);
 
-    (0..(buffer.width() * buffer.height()))
-        .into_par_iter()
-        .chunks(pixel_group)
-        .for_each(|chunk| {
-            for index in chunk {
-                let x = index % buffer.width();
-                let y = index / buffer.width();
+    if grc.multithread {
+        (0..(buffer.width() * buffer.height()))
+            .into_par_iter()
+            .chunks(pixel_group)
+            .for_each(|chunk| {
+                for index in chunk {
+                    let x = index % buffer.width();
+                    let y = index / buffer.width();
 
-                let resolution = buffer.resolution();
+                    let resolution = buffer.resolution();
+                    buffer.set_pixel(
+                        x,
+                        y,
+                        raytrace_pixel(&camera_transform, &camera, bvh, x, y, resolution),
+                    );
+                }
+            });
+    } else {
+        let resolution = buffer.resolution();
+        for y in 0..buffer.width() {
+            for x in 0..buffer.height() {
                 buffer.set_pixel(
                     x,
                     y,
-                    raytrace_pixel(&camera_transform, &camera, &bvh, x, y, resolution),
+                    raytrace_pixel(&camera_transform, &camera, bvh, x, y, resolution),
                 );
             }
-        });
+        }
+    }
 }
 
 pub fn raytrace_pixel(
     camera_transform: &M4,
     camera: &Camera,
-    bvh: &BVH,
+    bvh: &Bvh,
     x: usize,
     y: usize,
     resolution: Resolution,
@@ -74,7 +113,7 @@ pub fn raytrace_pixel(
     let u = (2.0 * (x as FSize + 0.5) / resolution.0 as FSize - 1.0) * scale * aspect;
     let v = (1.0 - 2.0 * (y as FSize + 0.5) / resolution.1 as FSize) * scale;
 
-    let dir_cam = V3::new_v3(u, v, -1.0).normalised();
+    let dir_cam = V3::new_v3(u, v, 1.0).normalised();
 
     // Transform ray origin and direction by camera transform
     let cam_pos = camera_transform.position();
@@ -111,10 +150,10 @@ pub fn raytrace_pixel(
 
     if hit_found {
         // Return a simple shaded color based on depth or a default surface color
-        // let intensity = (255.0 * (1.0 - (closest_t / 10.0).clamp(0.0, 1.0))) as u8;
-        [255, 255, 255, 255]
+        let intensity = (255.0 * (1.0 - (closest_t / 10.0).clamp(0.0, 1.0))).max(10.0) as u8;
+        [intensity, intensity, intensity, 255]
     } else {
-        [20, 20, 20, 255] // Background color
+        [0, 20, 40, 255] // Background color
     }
 }
 
@@ -134,10 +173,9 @@ pub fn intersect_scene_object(
 }
 
 pub fn intersect_sphere(ray: &Line, sphere: &Sphere, transform: &M4) -> Option<FSize> {
-    // Transform ray to local space (approximate using origin translation / inverse if available)
-    let inv_transform = transform.inverse().unwrap_or(M4::IDENTITY);
-    let local_origin = inv_transform.transform_v3(&ray.origin);
-    let local_dir = inv_transform.transform_v3(&ray.direction);
+    let inv_transform = transform.inverse().none_panic_or_identity();
+    let local_origin = inv_transform.transform_v3_w1(&ray.origin);
+    let local_dir = inv_transform.transform_v3_w0(&ray.direction);
 
     let radius = sphere.radius;
     let a = local_dir.dot(&local_dir);
@@ -158,9 +196,9 @@ pub fn intersect_sphere(ray: &Line, sphere: &Sphere, transform: &M4) -> Option<F
 }
 
 pub fn intersect_quad(ray: &Line, transform: &M4) -> Option<FSize> {
-    let inv_transform = transform.inverse().unwrap_or(M4::IDENTITY);
-    let local_origin = inv_transform.transform_v3(&ray.origin);
-    let local_dir = inv_transform.transform_v3(&ray.direction);
+    let inv_transform = transform.inverse().none_panic_or_identity();
+    let local_origin = inv_transform.transform_v3_w1(&ray.origin);
+    let local_dir = inv_transform.transform_v3_w0(&ray.direction);
 
     // Quad is unit square in XZ plane (y = 0)
     if local_dir.y().abs() < 1e-6 {
@@ -181,9 +219,9 @@ pub fn intersect_quad(ray: &Line, transform: &M4) -> Option<FSize> {
 }
 
 pub fn intersect_disk(ray: &Line, transform: &M4) -> Option<FSize> {
-    let inv_transform = transform.inverse().unwrap_or(M4::IDENTITY);
-    let local_origin = inv_transform.transform_v3(&ray.origin);
-    let local_dir = inv_transform.transform_v3(&ray.direction);
+    let inv_transform = transform.inverse().none_panic_or_identity();
+    let local_origin = inv_transform.transform_v3_w1(&ray.origin);
+    let local_dir = inv_transform.transform_v3_w0(&ray.direction);
 
     // Disk is unit-radius in XZ plane (y = 0)
     if local_dir.y().abs() < 1e-6 {
@@ -204,9 +242,9 @@ pub fn intersect_disk(ray: &Line, transform: &M4) -> Option<FSize> {
 }
 
 pub fn intersect_cube(ray: &Line, transform: &M4) -> Option<FSize> {
-    let inv_transform = transform.inverse().unwrap_or(M4::IDENTITY);
-    let local_origin = inv_transform.transform_v3(&ray.origin);
-    let local_dir = inv_transform.transform_v3(&ray.direction);
+    let inv_transform = transform.inverse().none_panic_or_identity();
+    let local_origin = inv_transform.transform_v3_w1(&ray.origin);
+    let local_dir = inv_transform.transform_v3_w0(&ray.direction);
 
     let mut t_min = 0.001;
     let mut t_max = FSize::INFINITY;
@@ -242,9 +280,9 @@ pub fn intersect_mesh(
     let tri = mesh.data.triangles[subobject_index as usize];
     let [i0, i1, i2] = tri.indices.map(|i| i as usize);
 
-    let p0 = transform.transform_v3(&mesh.data.vertices[i0].position);
-    let p1 = transform.transform_v3(&mesh.data.vertices[i1].position);
-    let p2 = transform.transform_v3(&mesh.data.vertices[i2].position);
+    let p0 = transform.transform_v3_w1(&mesh.data.vertices[i0].position);
+    let p1 = transform.transform_v3_w1(&mesh.data.vertices[i1].position);
+    let p2 = transform.transform_v3_w1(&mesh.data.vertices[i2].position);
 
     // Möller–Trumbore ray-triangle intersection
     let edge1 = p1 - p0;

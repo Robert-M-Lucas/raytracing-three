@@ -3,3 +3,6 @@
 .direnv
 .idea
 /static
+flamegraph.svg
+perf.data
+perf.data.*

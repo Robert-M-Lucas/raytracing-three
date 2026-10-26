@@ -1,4 +1,4 @@
-use crate::{FSize, maths::vector::V3};
+use crate::{CUSTOM_UNWRAP_BEHAVIOUR, CustomUnwrapBehaviour, FSize, maths::vector::V3};
 use std::{fmt, ops};
 
 #[macro_export]
@@ -93,18 +93,20 @@ impl<const N: usize> M<N, N> {
     }
 }
 
+pub trait UnwrapMatrix<const N: usize> {
+    fn none_panic_or_identity(self) -> M<N, N>;
+}
+
 const DEFAULT_DISPLAY_PRECISION: usize = 3;
 
 impl<const R: usize, const C: usize> fmt::Debug for M<R, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if C > 1 {
             write!(f, "M<{R},{C}>")?;
-            
-        }
-        else {
+        } else {
             write!(f, "V<{R}>")?;
         }
-        
+
         f.write_str("[")?;
         for (i, row) in self.data.iter().enumerate() {
             if i > 0 {
@@ -123,7 +125,7 @@ impl<const R: usize, const C: usize> fmt::Debug for M<R, C> {
                 }
             }
             if C > 1 {
-            f.write_str("]")?;
+                f.write_str("]")?;
             }
         }
         f.write_str("]")
@@ -468,8 +470,12 @@ impl M4 {
         self.cross(&Self::rotation_z(angle))
     }
 
-    pub fn transform_v3(&self, v3: &V3) -> V3 {
-        self.cross(&v3.to_v4()).div_w_v3()
+    pub fn transform_v3_w0(&self, v3: &V3) -> V3 {
+        self.cross(&v3.v4_w0()).v3()
+    }
+
+    pub fn transform_v3_w1(&self, v3: &V3) -> V3 {
+        self.cross(&v3.v4_w1()).div_w_v3()
     }
 
     pub const IDENTITY: M4 = M4 {
@@ -480,4 +486,18 @@ impl M4 {
             [0 as FSize, 0 as FSize, 0 as FSize, 1 as FSize],
         ],
     };
+}
+
+impl UnwrapMatrix<4> for Option<M4> {
+    fn none_panic_or_identity(self) -> M4 {
+        if let Some(m) = self {
+            m
+        } else {
+            if CUSTOM_UNWRAP_BEHAVIOUR == CustomUnwrapBehaviour::Panic {
+                panic!("Unwrapping None Matrix");
+            } else {
+                M4::IDENTITY
+            }
+        }
+    }
 }

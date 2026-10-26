@@ -45,11 +45,16 @@
       pkgs,
       pkgsCmake,
     }: {
-      default = pkgs.mkShell {
+      default = pkgs.mkShell.override {
+        # Forces the stdenv compiler wrapper to use mold by default
+        stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.clangStdenv;
+      } {
         packages = with pkgs;
           [
             pkg-config
             SDL2
+            mold
+            clang
           ]
           ++ [pkgsCmake.cmake];
 
@@ -71,6 +76,7 @@
           # Required by rust-analyzer
           # RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
           SDL_VIDEODRIVER="wayland";
+          RUSTFLAGS="-C target-cpu=native";
         };
       };
     });
