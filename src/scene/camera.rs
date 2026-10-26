@@ -6,8 +6,8 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(fov_deg: FSize) -> Self {
-        Camera { fov: (fov_deg / 180 as FSize) * std::f64::consts::PI as FSize }
+    pub fn new(fov: FSize) -> Self {
+        Camera { fov }
     }
 
     pub fn scene_node(self) -> SceneNode {
@@ -17,6 +17,6 @@ impl Camera {
 
 impl Default for Camera {
     fn default() -> Self {
-        Self { fov: 19.7 as FSize }
+        Self { fov: 90 as FSize }
     }
 }

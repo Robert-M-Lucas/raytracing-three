@@ -158,6 +158,7 @@ impl Interface {
 
     fn handle_input(&mut self, event_pump: &mut EventPump, delta_time: FSize) -> bool {
         let (mut look_x, mut look_y) = (0.0 as FSize, 0.0 as FSize);
+        let mut fov_delta = 0.0;
 
         for event in event_pump.poll_iter() {
             match event {
@@ -167,8 +168,22 @@ impl Interface {
                     ..
                 } => return true,
                 Event::MouseMotion { xrel, yrel, .. } => {
-                    look_x += xrel as FSize;
+                    look_x -= xrel as FSize;
                     look_y += yrel as FSize;
+                }
+                Event::MouseWheel {
+                    timestamp: _,
+                    window_id: _,
+                    which: _,
+                    x: _,
+                    y: _,
+                    direction: _,
+                    precise_x: _,
+                    precise_y,
+                    mouse_x: _,
+                    mouse_y: _,
+                } => {
+                    fov_delta -= precise_y as FSize;
                 }
                 _ => {}
             }
@@ -176,26 +191,31 @@ impl Interface {
 
         let keyboard_state = event_pump.keyboard_state();
         let down = |sc: Scancode| keyboard_state.is_scancode_pressed(sc);
-        // +1 if any `pos` key is held, -1 if any `neg` key is held (cancel if both)
+
         let axis = |pos: &[Scancode], neg: &[Scancode]| -> FSize {
             (pos.iter().any(|&s| down(s)) as i32 - neg.iter().any(|&s| down(s)) as i32) as FSize
         };
 
-        let fast = delta_time * 20.0;
+        let fast = delta_time * 10.0;
         let slow = delta_time * 1.0;
 
-        let right = fast * axis(&[Scancode::D], &[Scancode::A])
-            + slow * axis(&[Scancode::Right], &[Scancode::Left]);
-        let forward = fast * axis(&[Scancode::W], &[Scancode::S])
-            + slow * axis(&[Scancode::Up], &[Scancode::Down]);
-        let up = fast * axis(&[Scancode::Space], &[Scancode::C, Scancode::LCtrl])
-            + slow * axis(&[Scancode::Q], &[Scancode::E]);
+        let right = fast * axis(&[Scancode::A], &[Scancode::D])
+            + slow * axis(&[Scancode::Left], &[Scancode::Right]);
+        let forward = fast * axis(&[Scancode::S], &[Scancode::W])
+            + slow * axis(&[Scancode::Down], &[Scancode::Up]);
+        let up =
+            fast * axis(
+                &[Scancode::Space],
+                &[Scancode::C, Scancode::LCtrl, Scancode::LShift],
+            ) + slow * axis(&[Scancode::E], &[Scancode::Q]);
 
         if let Some(camera_node) = self.scene.find_first_camera_mut() {
             camera_node
                 .transform
-                .fps_look(-look_x / 1000.0, -look_y / 1000.0);
+                .fps_look(look_x / 1000.0, look_y / 1000.0);
             camera_node.transform.fps_translate(right, up, forward);
+            let camera_fov = &mut camera_node.camera_mut().unwrap().fov;
+            *camera_fov = (*camera_fov + fov_delta).clamp(5 as FSize, 180 as FSize);
         }
 
         if down(Scancode::M) {

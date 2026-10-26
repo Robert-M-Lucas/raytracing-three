@@ -10,3 +10,15 @@ pub const _480P: Resolution = (864, 486);
 pub const _360P: Resolution = (640, 360);
 pub const _240P: Resolution = (432, 243);
 pub const _144P: Resolution = (256, 144);
+
+pub const _32K_SQ: Resolution = (17280, 17280);
+pub const _16K_SQ: Resolution = (8640, 8640);
+pub const _8K_SQ: Resolution = (4320, 4320);
+pub const _4K_SQ: Resolution = (2160, 2160);
+pub const _1440P_SQ: Resolution = (1440, 1440);
+pub const _1080P_SQ: Resolution = (1080, 1080);
+pub const _720P_SQ: Resolution = (720, 720);
+pub const _480P_SQ: Resolution = (486, 486);
+pub const _360P_SQ: Resolution = (360, 360);
+pub const _240P_SQ: Resolution = (243, 243);
+pub const _144P_SQ: Resolution = (144, 144);

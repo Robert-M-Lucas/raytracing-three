@@ -147,14 +147,10 @@ fn load_scene_json(scene_json: &Path) -> Result<SceneNode, LoadError> {
     Ok(root)
 }
 
-/// Only the position and fov are used; orientation/look_at/tonemap/etc. are ignored.
 fn parse_camera(c: &Value) -> Result<SceneNode, LoadError> {
     let fov = json::get_f(c, "fov", 60.0)?;
-    let t = c.get("transform").unwrap_or(&Value::Null);
-    let p = json::get_vec3(t, "position", V3::ZERO, "camera position")?;
-    Ok(Camera::new(fov)
-        .scene_node()
-        .with_transform(M4::translation(p.x(), p.y(), p.z())))
+    let transform = parse_transform(c.get("transform"), "camera")?;
+    Ok(Camera::new(fov).scene_node().with_transform(transform))
 }
 
 fn parse_primitive(
@@ -225,7 +221,7 @@ fn parse_transform(t: Option<&Value>, ctx: &str) -> Result<M4, LoadError> {
     let Some(t) = t else {
         return Ok(M4::identity());
     };
- 
+
     if let Some(arr) = t.as_array() {
         if arr.len() != 16 {
             return Err(LoadError::invalid(ctx, "matrix transform needs 16 numbers"));
@@ -236,10 +232,10 @@ fn parse_transform(t: Option<&Value>, ctx: &str) -> Result<M4, LoadError> {
         }
         return Ok(M4::new_m(d));
     }
- 
+
     let pos = json::get_vec3(t, "position", V3::ZERO, ctx)?;
     let scale = json::get_vec3(t, "scale", V3::ONE, ctx)?;
- 
+
     let rotation = match t.get("look_at") {
         // `look_at` takes precedence over `rotation`, as in Tungsten.
         Some(target) => {
@@ -255,7 +251,7 @@ fn parse_transform(t: Option<&Value>, ctx: &str) -> Result<M4, LoadError> {
                 .cross(&M4::rotation_z(rot.z() * to_rad))
         }
     };
- 
+
     Ok(M4::translation(pos.x(), pos.y(), pos.z())
         .cross(&rotation)
         .cross(&M4::scaling(scale.x(), scale.y(), scale.z())))
@@ -277,14 +273,14 @@ fn look_at_rotation(eye: V3, target: V3, up: V3, ctx: &str) -> Result<M4, LoadEr
         let l = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt();
         (l > 1e-8).then(|| [a[0] / l, a[1] / l, a[2] / l])
     }
- 
+
     let (e, t, u) = (arr(eye), arr(target), arr(up));
     let f = normalise([t[0] - e[0], t[1] - e[1], t[2] - e[2]])
         .ok_or_else(|| LoadError::invalid(ctx, "look_at equals position"))?;
     let r = normalise(cross(u, f))
         .ok_or_else(|| LoadError::invalid(ctx, "up is zero or parallel to the view direction"))?;
     let y = cross(f, r);
- 
+
     Ok(M4::new_m([
         [r[0], y[0], f[0], 0.0],
         [r[1], y[1], f[1], 0.0],

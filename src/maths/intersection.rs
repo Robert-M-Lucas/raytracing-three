@@ -38,7 +38,7 @@ impl Intersection {
         Some(&hits[current_intersect.unwrap()])
     }
 
-    pub fn closest(hits: &Vec<Intersection>) -> Option<&Intersection> {
+    pub fn closest(hits: &[Intersection]) -> Option<&Intersection> {
         let mut closest_dist = FSize::INFINITY;
         let mut current_intersect = None;
 
