@@ -2,8 +2,8 @@ use crate::FSize;
 use crate::pipelines::buffer::Buffer;
 use crate::pipelines::render_config::{MultiFrameConfig, PipelineConfig};
 use crate::pipelines::{render_image, render_image_background};
+use crate::resolutions::Resolution;
 use crate::scene::scene_node::SceneNode;
-use crate::utils::Resolution;
 use chrono::{Datelike, Timelike};
 use image::{DynamicImage, ImageBuffer, Rgba};
 use sdl2::EventPump;
@@ -28,7 +28,6 @@ pub struct Interface {
 
 impl Interface {
     pub fn new(
-        title: String,
         pipeline_config: PipelineConfig,
         screenshot_config: Option<PipelineConfig>,
         multi_frame_config: MultiFrameConfig,
@@ -36,7 +35,7 @@ impl Interface {
         window_resolution: Resolution,
     ) -> Interface {
         Self {
-            title,
+            title: scene.name.clone().unwrap_or("Raytracer".to_string()),
             pipeline_config,
             screenshot_config,
             multi_frame_config,
@@ -68,13 +67,13 @@ impl Interface {
 
                 for _event in event_pump.poll_iter() {}
 
-                let mut snapshot: Vec<u8> = display_override.to_rgba_vec();
+                let (resolution, mut snapshot) = display_override.to_rgba_vec_sdl2();
 
                 let surface = Surface::from_data(
                     snapshot.as_mut(),
-                    display_override.width() as u32,
-                    display_override.height() as u32,
-                    4 * display_override.width() as u32,
+                    resolution.0,
+                    resolution.1,
+                    4 * resolution.0,
                     sdl2::pixels::PixelFormatEnum::RGBA32,
                 )
                 .unwrap();
@@ -101,6 +100,7 @@ impl Interface {
                     self.pipeline_config.clone(),
                     self.scene.clone(),
                     MultiFrameConfig::none(),
+                    false,
                 );
 
                 let mut image = buffer.to_rgba_vec();
@@ -240,6 +240,7 @@ impl Interface {
 
                     save_buffer_png(&buffer);
                 }),
+                true,
             );
 
             *render_progress = Some(buffer);

@@ -3,7 +3,7 @@ use std::sync::{
     atomic::{AtomicU32, Ordering},
 };
 
-use crate::utils::Resolution;
+use crate::resolutions::Resolution;
 
 #[derive(Clone)]
 pub struct Buffer {
@@ -14,6 +14,10 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(width: usize, height: usize) -> Self {
+        if width == 0 || height == 0 {
+            panic!("Buffer axes cannot be 0");
+        }
+
         let len = width
             .checked_mul(height)
             .expect("buffer dimensions overflow usize");
@@ -102,5 +106,34 @@ impl Buffer {
         let mut out = vec![0u8; self.pixel_arena.len() * 4];
         self.copy_to_rgba(&mut out);
         out
+    }
+
+    pub fn to_rgba_vec_sdl2(&self) -> (Resolution, Vec<u8>) {
+        let res = self.resolution();
+        let mut divider = 1;
+
+        while res.0 / divider > 16384 || res.1 / divider > 16384 {
+            // SDL2 limits
+            divider += 1;
+        }
+
+        let res = ((res.0 / divider).max(1), (res.1 / divider.max(1)));
+        let mut out = Vec::with_capacity((res.0 * res.1 * 4) as usize);
+
+        let mut y = 0;
+        while y < self.width as u32 {
+            let mut x = 0;
+            while x < self.height as u32 {
+                out.extend_from_slice(
+                    &self.pixel_arena[(y * self.width as u32 + x) as usize]
+                        .load(Ordering::Relaxed)
+                        .to_le_bytes(),
+                );
+                x += divider;
+            }
+            y += divider;
+        }
+
+        (res, out)
     }
 }

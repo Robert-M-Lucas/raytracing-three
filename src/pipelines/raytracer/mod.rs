@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 
 use crate::{
@@ -14,12 +15,12 @@ use crate::{
         render_config::{GlobalRenderConfig, RenderPipeline},
         shared::bvh::Bvh,
     },
+    resolutions::Resolution,
     scene::{
         camera::Camera,
         geometry::{Geometry, Sphere, mesh::Mesh},
         scene_node::SceneNode,
     },
-    utils::Resolution,
 };
 
 #[derive(Debug, Clone)]
@@ -40,8 +41,8 @@ impl RaytracerCache {
 
 pub fn raytracing_pipeline(config: RaytracerConfig) -> RenderPipeline {
     let cache = RaytracerCache::new();
-    Box::new(move |grc, scene, buffer| {
-        raytrace(grc, config, scene, buffer, &cache);
+    Box::new(move |grc, scene, buffer, print_progress| {
+        raytrace(grc, config, scene, buffer, &cache, print_progress);
     })
 }
 
@@ -51,6 +52,7 @@ fn raytrace(
     scene: SceneNode,
     buffer: Buffer,
     cache: &RaytracerCache,
+    print_progress: bool,
 ) {
     let camera = scene
         .find_first_camera()
@@ -63,10 +65,22 @@ fn raytrace(
     }
     let bvh = cached.as_ref().unwrap();
 
-    // 16 * CPUs groups
-    let pixel_group = (((buffer.width() * buffer.height()) / 16) / num_cpus::get()).max(1);
-
     if grc.multithread {
+        // 16 * CPUs groups
+        let pixel_group = (((buffer.width() * buffer.height()) / 16) / num_cpus::get()).max(1);
+        let group_count =
+            (((buffer.width() * buffer.height()) as FSize) / pixel_group as FSize).ceil() as u64;
+
+        let pb = print_progress.then_some(ProgressBar::new(group_count));
+        if let Some(pb) = pb.as_ref() {
+            pb.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} chunks ({eta})")
+                .unwrap()
+                .progress_chars("#>-"),
+        )
+        }
+
         (0..(buffer.width() * buffer.height()))
             .into_par_iter()
             .chunks(pixel_group)
@@ -82,17 +96,41 @@ fn raytrace(
                         raytrace_pixel(&camera_transform, &camera, bvh, x, y, resolution),
                     );
                 }
+                if let Some(pb) = pb.as_ref() {
+                    pb.inc(1)
+                }
             });
+
+        if let Some(pb) = pb.as_ref() {
+            pb.finish_with_message("Render complete")
+        }
     } else {
         let resolution = buffer.resolution();
-        for y in 0..buffer.width() {
-            for x in 0..buffer.height() {
+        let pb = print_progress.then_some(ProgressBar::new(buffer.height() as u64));
+        if let Some(pb) = pb.as_ref() {
+            pb.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} rows ({eta})")
+                .unwrap()
+                .progress_chars("#>-"),
+        )
+        }
+
+        for y in 0..buffer.height() {
+            for x in 0..buffer.width() {
                 buffer.set_pixel(
                     x,
                     y,
                     raytrace_pixel(&camera_transform, &camera, bvh, x, y, resolution),
                 );
             }
+            if let Some(pb) = pb.as_ref() {
+                pb.inc(1)
+            }
+        }
+
+        if let Some(pb) = pb.as_ref() {
+            pb.finish_with_message("Render complete")
         }
     }
 }
